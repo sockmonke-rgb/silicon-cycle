@@ -2,7 +2,7 @@
 
 A tower defense game about running a semiconductor portfolio through the boom-and-bust cycle. One HTML file, no dependencies, no network calls, no tracking.
 
-**[Play it →](https://mark-florentino.github.io/silicon-cycle/)** *(update this link once Pages is live)*
+**[Play it →](https://sockmonke-rgb.github.io/silicon-cycle/)** *(update this link once Pages is live)*
 
 ---
 
