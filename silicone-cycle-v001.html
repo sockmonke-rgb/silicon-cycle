@@ -1,0 +1,3177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+  Silicon Cycle - a semiconductor portfolio tower defense.
+  Single file, no dependencies, no network calls.
+
+  MIT License
+
+  Copyright (c) 2026 Mark, Florentino LLC
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SILICON CYCLE — a semiconductor portfolio defense</title>
+<style>
+:root{
+  --void:#080b14;
+  --wafer:#0e1424;
+  --wafer-2:#141d33;
+  --trace:#c98a3c;      /* copper interconnect */
+  --trace-dim:#6b4a20;
+  --euv:#e0479e;        /* EUV plasma */
+  --si:#4fd3e8;         /* silicon cyan */
+  --phos:#f2c14e;       /* phosphor amber = cash */
+  --conv:#8fd94a;       /* conviction */
+  --ink:#dbe4f5;
+  --ink-dim:#7e8ba6;
+  --ink-faint:#4b5670;
+  --red:#ef5b5b;
+  --line:rgba(120,150,200,.16);
+  --ts:1;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--void);color:var(--ink);font-family:var(--mono);-webkit-text-size-adjust:100%;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+body{
+  min-height:100vh;
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, rgba(79,211,232,.07), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(120,150,200,.035) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgba(120,150,200,.035) 0 1px, transparent 1px 34px);
+}
+.shell{max-width:1400px;margin:0 auto;padding:10px 12px 40px}
+button{touch-action:manipulation;-webkit-appearance:none;appearance:none}
+
+/* ---------- masthead ---------- */
+.mast{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:6px 2px 10px;border-bottom:1px solid var(--line)}
+.mast h1{
+  font-size:clamp(15px,2.4vw,22px);font-weight:700;letter-spacing:.34em;margin:0;
+  text-transform:uppercase;color:var(--ink);
+}
+.mast h1 b{color:var(--euv);font-weight:700}
+.mast .sub{font-size:calc(10px * var(--ts));letter-spacing:.22em;color:var(--ink-faint);text-transform:uppercase}
+
+/* ---------- ticker rail ---------- */
+.rail{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:10px 0}
+.cellstat{background:var(--wafer);padding:7px 10px;min-width:0}
+.cellstat .k{font-size:calc(9px * var(--ts));letter-spacing:.18em;color:var(--ink-faint);text-transform:uppercase}
+.cellstat .v{font-size:calc(19px * var(--ts));font-weight:700;letter-spacing:.02em;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap}
+.v.cash{color:var(--phos)} .v.conv{color:var(--conv)} .v.nav{color:var(--si)} .v.wave{color:var(--ink)}
+.v.nav.hurt{color:var(--red)}
+
+/* ---------- main grid ---------- */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start}
+@media (max-width:1080px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- cycle oscillator (signature) ---------- */
+.osc{border:1px solid var(--line);background:linear-gradient(180deg,var(--wafer),#0a1020);position:relative;overflow:hidden;display:flex;align-items:stretch}
+.osc canvas{display:block;width:100%;height:82px}
+
+/* ---------- board ---------- */
+.board{position:relative;border:1px solid var(--line);background:#070a12;margin-top:12px;touch-action:manipulation}
+#gl{display:block;width:100%;height:auto;cursor:crosshair;-webkit-user-select:none;user-select:none}
+/* margin:auto instead of align-items:center - a centred flex item cannot be
+   scrolled back to when it overflows, which clipped the heading at Larger text */
+.overlay{position:absolute;inset:0;display:flex;justify-content:center;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:rgba(6,9,17,.88);backdrop-filter:blur(3px);text-align:center;padding:20px;z-index:5}
+.overlay>div{margin:auto;width:100%;max-width:520px}
+.overlay.hidden{display:none}
+.overlay h2{margin:0 0 8px;font-size:calc(26px * var(--ts));letter-spacing:.24em;text-transform:uppercase}
+.overlay p{margin:0 0 16px;color:var(--ink-dim);font-size:calc(12.5px * var(--ts));line-height:1.7;max-width:520px}
+.overlay .kbd{color:var(--si)}
+
+/* tapping a position opens its actions right where it stands - no scrolling */
+.tpop{position:absolute;z-index:6;width:212px;padding:9px 10px 11px;
+  background:rgba(11,16,29,.95);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  box-shadow:0 12px 34px rgba(0,0,0,.6)}
+.tpop[hidden]{display:none}
+.tpop .x{position:absolute;top:2px;right:3px;background:none;border:none;color:var(--ink-faint);
+  font-family:inherit;font-size:calc(15px * var(--ts));line-height:1;cursor:pointer;padding:4px 6px}
+.tpop .x:hover{color:var(--ink)}
+.tpop .nm{font-size:calc(11.5px * var(--ts));font-weight:700;letter-spacing:.05em;margin:1px 0 6px;padding-right:16px;line-height:1.25}
+.tpop .st{display:flex;justify-content:space-between;gap:8px;font-size:calc(10px * var(--ts));color:var(--ink-dim);
+  font-variant-numeric:tabular-nums;padding:1.5px 0}
+.tpop .st b{color:var(--ink);font-weight:700}
+.tpop .btn{margin-top:6px;padding:8px 9px;font-size:calc(10.5px * var(--ts));letter-spacing:.06em}
+.tpop .btn small{font-size:calc(9.5px * var(--ts));margin-top:2px}
+
+/* threat briefing: freezes the floor, so covering it costs the player nothing */
+#gl{transition:filter .35s ease}
+.board.frozen #gl{filter:saturate(.25) brightness(.5) contrast(.9)}
+.brief{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;
+  padding:18px;cursor:pointer;background:rgba(6,9,17,.35)}
+.brief[hidden]{display:none}
+.brief-card{width:min(420px,100%);background:rgba(11,16,29,.97);border:1px solid rgba(224,71,158,.45);
+  box-shadow:inset 3px 0 0 var(--euv),0 18px 46px rgba(0,0,0,.7);padding:14px 16px 12px}
+.brief-card .t{font-size:calc(9.5px * var(--ts));letter-spacing:.24em;text-transform:uppercase;color:var(--euv)}
+.brief-card .n{font-size:calc(19px * var(--ts));font-weight:700;letter-spacing:.1em;margin:3px 0 6px;line-height:1.15}
+.brief-card .d{font-size:calc(12px * var(--ts));color:var(--ink-dim);line-height:1.55}
+.brief-card .c{font-size:calc(12px * var(--ts));color:var(--ink-dim);line-height:1.6;margin-top:6px}
+.brief-card .bar{height:2px;background:rgba(120,150,200,.18);margin:12px 0 7px}
+.brief-card .bar i{display:block;height:100%;width:100%;background:var(--euv);
+  transition:background .2s,opacity .2s}
+.brief-card.held{border-color:rgba(224,71,158,.8);box-shadow:inset 3px 0 0 var(--euv),0 18px 46px rgba(0,0,0,.75)}
+.brief-card.held .bar{background:repeating-linear-gradient(90deg,rgba(224,71,158,.28) 0 5px,transparent 5px 10px)}
+.brief-card.held .bar i{background:var(--ink-dim);opacity:.65}
+.brief-card.held .hint{color:var(--euv)}
+.brief-card .hint{font-size:calc(9.5px * var(--ts));letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+
+/* charged abilities */
+.abils{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border:1px solid var(--line);border-top:none}
+.ab{position:relative;overflow:hidden;background:var(--wafer);border:none;color:inherit;
+  font-family:inherit;text-align:left;padding:9px 11px 10px;cursor:default;min-height:60px;
+  transition:background .15s}
+.ab .fill{position:absolute;left:0;top:0;bottom:0;width:0;z-index:0;transition:width .2s linear}
+.ab>b,.ab>small,.ab>em{position:relative;z-index:1;display:block}
+.ab>b{font-size:calc(11.5px * var(--ts));font-weight:700;letter-spacing:.08em;text-transform:uppercase;line-height:1.2;padding-right:14px}
+.ab>small{font-size:calc(9.5px * var(--ts));color:var(--ink-faint);line-height:1.42;margin:3px 0 4px}
+.ab>em{font-style:normal;font-size:calc(10px * var(--ts));font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+.ab .k{position:absolute;top:5px;right:7px;z-index:2;font-size:calc(9px * var(--ts));color:var(--ink-faint)}
+.ab.ready{cursor:pointer;box-shadow:inset 2px 0 0 var(--acc)}
+.ab.ready>b,.ab.ready>em{color:var(--acc)}
+.ab.ready:hover{background:var(--wafer-2)}
+.ab.live{background:#16233a;box-shadow:inset 0 0 0 1px var(--acc)}
+
+/* time dilation while a decision is open */
+.board.slowmo #gl{filter:saturate(.62) brightness(.82)}
+
+/* wire strip: wave manifest, and threat alerts that never cover the floor */
+.wire{border:1px solid var(--line);border-top:none;background:var(--wafer);padding:8px 11px 6px;
+  transition:background .3s,box-shadow .3s;cursor:default}
+.wire-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:calc(9px * var(--ts));letter-spacing:.2em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+.wire-body{display:flex;flex-wrap:wrap;align-items:center;min-height:20px}
+
+/* ticker symbols */
+/* ---- shared affordance language: green + attractor = you can act now ---- */
+@keyframes attract{
+  0%,100%{box-shadow:inset 2px 0 0 var(--conv),0 0 0 rgba(143,217,74,0)}
+  50%    {box-shadow:inset 2px 0 0 var(--conv),0 0 12px rgba(143,217,74,.30)}
+}
+@keyframes dotpulse{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1)}}
+
+.btn.act{border-color:#3d5c33;background:#1d2c1c;box-shadow:inset 2px 0 0 var(--conv)}
+.btn.act:hover:not(:disabled){background:#263a23;border-color:var(--conv)}
+.btn.idle{opacity:1;background:#141a26;border-color:#232d42;color:var(--ink-faint)}
+.btn.idle .p,.btn.idle .p.c{color:var(--ink-faint)}
+.btn.done{background:#141a26;border-color:#232d42;color:var(--ink-dim)}
+.btn .state{float:right;font-size:calc(9px * var(--ts));font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--conv);margin-left:8px}
+.btn.idle .state,.btn.done .state{color:var(--ink-faint)}
+
+.ctl.act{background:#1d2c1c;color:#cfe8b8;animation:attract 2.6s ease-in-out infinite}
+.ctl.act .cnt{color:var(--conv);font-weight:700;margin-left:5px}
+.ctl.idle{color:var(--ink-faint)}
+.tab{position:relative}
+.tab .dot{position:absolute;top:7px;right:6px;width:5px;height:5px;border-radius:50%;
+  background:var(--conv);animation:dotpulse 2.2s ease-in-out infinite}
+.ab.ready{animation:attract 2.6s ease-in-out infinite}
+.pos.broke{opacity:1;filter:grayscale(1);color:var(--ink-faint)}
+.pos.locked{opacity:.35;cursor:not-allowed}
+.pos.broke .pr{color:var(--ink-faint)}
+.ctow{font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.lab{display:inline-block;color:var(--si);font-size:calc(9px * var(--ts));font-weight:700;letter-spacing:.2em;
+  text-transform:uppercase;margin-right:7px;vertical-align:1px}
+.codex-item.locked .ctow{color:var(--ink-faint)!important}
+.tick{display:inline-block;font-family:var(--mono);font-weight:700;font-size:calc(9.5px * var(--ts));
+  letter-spacing:.16em;padding:2px 5px;border:1px solid;border-radius:2px;
+  text-transform:uppercase;white-space:nowrap;margin:0 5px 4px 0;line-height:1.35}
+
+/* ---------- desk (tower shop) ---------- */
+.desk{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-top:none}
+.pos{background:var(--wafer);border:none;text-align:left;padding:8px 9px;cursor:pointer;
+  color:inherit;font-family:inherit;position:relative;transition:background .12s;
+  display:flex;flex-direction:column;align-items:flex-start}
+.pos:hover{background:var(--wafer-2)}
+.pos:focus-visible{outline:2px solid var(--si);outline-offset:-2px}
+.pos.armed{background:#1b2742;box-shadow:inset 0 0 0 1px var(--si)}
+.pos .cta{display:none;font-style:normal;align-self:center;margin-top:auto;padding-top:4px;
+  white-space:nowrap;font-size:calc(8px * var(--ts));letter-spacing:.14em;text-transform:uppercase;
+  color:var(--conv);font-weight:700;animation:ctablink 2.4s ease-in-out infinite}
+@keyframes ctablink{0%,100%{opacity:.4}50%{opacity:1}}
+.pos.attract{box-shadow:inset 0 0 0 1px var(--conv);animation:attract 2.6s ease-in-out infinite}
+.pos.attract .cta{display:block}
+.pos.broke{opacity:.42;cursor:not-allowed}
+.pos .hk{position:absolute;top:6px;right:7px;font-size:calc(9px * var(--ts));color:var(--ink-faint)}
+.pos .nm{font-size:calc(11.5px * var(--ts));font-weight:700;letter-spacing:.06em;margin:2px 0 4px;line-height:1.2}
+.pos .pr{font-size:calc(12px * var(--ts));font-weight:700;color:var(--phos);font-variant-numeric:tabular-nums}
+.pos .swatch{position:absolute;left:0;top:0;bottom:0;width:2px}
+
+/* ---------- side panel ---------- */
+.side{border:1px solid var(--line);background:var(--wafer)}
+.tabs{display:flex;border-bottom:1px solid var(--line);align-items:center;position:relative}
+.tab{flex:1 1 0;min-width:0;height:38px;padding:0 3px;margin:0;position:relative;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  -webkit-appearance:none;appearance:none;box-sizing:border-box;
+  line-height:1;white-space:nowrap;overflow:hidden;
+  background:none;border:none;border-right:1px solid var(--line);color:var(--ink-faint);
+  font-family:inherit;font-size:calc(9.5px * var(--ts));letter-spacing:.1em;
+  cursor:pointer;text-transform:uppercase}
+.tab:last-child{border-right:none}
+/* Every tab is now identical in structure and style - same element, same span,
+   same box - and differs only in colour. The selected indicator is a SIBLING
+   that slides, so no tab carries a pseudo-element its neighbours lack. */
+.tab.on{color:var(--ink)}
+.tab .tl{display:block;line-height:1}
+.tab-ind{position:absolute;bottom:0;left:0;width:0;height:2px;background:var(--trace);
+  transition:left .18s ease,width .18s ease;pointer-events:none}
+.pane{padding:12px 13px 18px;font-size:calc(12px * var(--ts));line-height:1.6;max-height:560px;overflow:auto;position:relative}
+.pane::-webkit-scrollbar{width:6px}.pane::-webkit-scrollbar-thumb{background:#26314c}
+.empty{color:var(--ink-faint);font-size:calc(11.5px * var(--ts));line-height:1.75}
+
+/* header that stays put while the list scrolls under it */
+.pane-sticky{position:sticky;top:0;z-index:3;background:var(--wafer);
+  margin:-12px -13px 11px;padding:11px 13px 9px;border-bottom:1px solid var(--line)}
+.pane-sticky .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.pane-sticky .ttl{font-size:calc(9.5px * var(--ts));letter-spacing:.22em;color:var(--ink-faint);
+  text-transform:uppercase;font-weight:600}
+.pane-sticky .bal{font-size:calc(9px * var(--ts));letter-spacing:.18em;color:var(--ink-faint);
+  text-transform:uppercase;white-space:nowrap}
+.pane-sticky .bal b{font-size:calc(16px * var(--ts));font-weight:700;color:var(--conv);
+  letter-spacing:0;font-variant-numeric:tabular-nums;margin-right:4px}
+.pane-note{font-size:calc(11px * var(--ts));line-height:1.6;color:var(--ink-faint)}
+
+h3.sec{font-size:calc(9.5px * var(--ts));letter-spacing:.22em;color:var(--ink-faint);text-transform:uppercase;margin:0 0 8px;font-weight:600}
+.hr{height:1px;background:var(--line);margin:12px 0}
+.rowline{display:flex;justify-content:space-between;gap:10px;font-size:calc(11.5px * var(--ts));padding:2.5px 0;font-variant-numeric:tabular-nums}
+.rowline span:first-child{color:var(--ink-dim)}
+.rowline b{font-weight:700}
+.up{color:var(--conv)} .dn{color:var(--red)} .am{color:var(--phos)} .cy{color:var(--si)}
+
+.btn{display:block;width:100%;background:#182338;border:1px solid #2c3b5c;color:var(--ink);font-family:inherit;font-size:calc(11px * var(--ts));letter-spacing:.1em;padding:9px;cursor:pointer;text-transform:uppercase;margin-top:7px;text-align:left;transition:background .12s,border-color .12s}
+.btn:hover:not(:disabled){background:#22314f;border-color:var(--trace)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn .p{float:right;color:var(--phos);font-weight:700}
+.btn .p.c{color:var(--conv)}
+.btn.go{background:#1d2c1c;border-color:#3d5c33}
+.btn.go:hover:not(:disabled){background:#263a23;border-color:var(--conv)}
+.btn.sell{background:#2a1a1e;border-color:#5c3339}
+.btn.sell:hover:not(:disabled){border-color:var(--red)}
+.btn small{display:block;text-transform:none;letter-spacing:0;color:var(--ink-faint);font-size:calc(10px * var(--ts));margin-top:3px;line-height:1.45}
+
+.branch{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+.branch .btn{margin-top:0}
+
+.codex-item{border-left:2px solid var(--trace-dim);padding:0 0 0 9px;margin-bottom:11px}
+.codex-item .cn{font-size:calc(11.5px * var(--ts));font-weight:700;letter-spacing:.06em}
+.codex-item .cd{font-size:calc(10.5px * var(--ts));color:var(--ink-dim);line-height:1.55}
+.codex-item .cc{font-size:calc(10.5px * var(--ts));color:var(--ink-dim);line-height:1.55;margin-top:3px}
+.codex-item.locked{opacity:.35}
+.codex-item.locked .cc,.codex-item.locked .cd{color:var(--ink-faint)}
+
+.controls{display:flex;gap:1px;background:var(--line);border:1px solid var(--line);border-top:none}
+.ctl{flex:1;background:var(--wafer);border:none;color:var(--ink);font-family:inherit;font-size:calc(11px * var(--ts));letter-spacing:.12em;padding:11px 6px;cursor:pointer;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctl:hover{background:var(--wafer-2)}
+.ctl.primary{background:#1d2c1c;color:#cfe8b8}
+.ctl.primary:hover{background:#263a23}
+.ctl b{color:var(--phos)}
+
+.legend{font-size:calc(10px * var(--ts));color:var(--ink-faint);letter-spacing:.06em;line-height:1.7;margin-top:10px;padding:0 2px}
+.legend kbd{background:#1a2338;border:1px solid #2c3b5c;border-radius:2px;padding:0 4px;color:var(--ink-dim);font-family:inherit;font-size:calc(10px * var(--ts))}
+/* ============ compact / sheet / tooltip / status rail ============ */
+.osc-chart{position:relative;flex:1;min-width:0}
+.osc-chart .lbl{position:absolute;top:4px;left:8px;font-size:calc(8.5px * var(--ts));letter-spacing:.2em;
+  color:var(--ink-faint);text-transform:uppercase;pointer-events:none}
+.osc-read{flex:0 0 auto;text-align:right;padding:0 10px 0 8px;border-left:1px solid var(--line);
+  display:flex;flex-direction:column;justify-content:center;gap:2px}
+.osc-read .phase{font-size:calc(12px * var(--ts));font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.osc-read .hint{font-size:calc(9px * var(--ts));letter-spacing:.04em;color:var(--ink-faint);white-space:nowrap}
+
+/* status rail: active effects slide in from the board edge */
+.statrail{position:absolute;top:8px;right:0;z-index:4;display:flex;flex-direction:column;
+  gap:5px;align-items:flex-end;pointer-events:none}
+.stat{transform:translateX(105%);transition:transform .3s cubic-bezier(.2,.8,.25,1),opacity .3s;
+  opacity:0;background:rgba(11,16,29,.93);border:1px solid;border-right:none;
+  padding:5px 9px 6px;min-width:118px;max-width:60%}
+.stat.on{transform:none;opacity:1}
+.stat b{display:block;font-size:calc(10px * var(--ts));font-weight:700;letter-spacing:.14em;text-transform:uppercase;line-height:1.2}
+.stat .sub{font-size:calc(9px * var(--ts));letter-spacing:.08em;color:var(--ink-dim);margin-top:1px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat .bar{height:2px;background:rgba(120,150,200,.2);margin-top:5px}
+.stat .bar i{display:block;height:100%;width:100%}
+
+/* hold / hover summary */
+.tip{position:fixed;z-index:60;max-width:250px;background:rgba(11,16,29,.97);
+  border:1px solid var(--line);border-left:2px solid var(--acc,var(--trace));
+  padding:8px 10px 9px;font-size:calc(11px * var(--ts));line-height:1.5;box-shadow:0 12px 34px rgba(0,0,0,.65);
+  pointer-events:none}
+.tip[hidden]{display:none}
+.tip .tt{font-size:calc(11.5px * var(--ts));font-weight:700;letter-spacing:.06em;margin-bottom:3px}
+.tip .tr{display:flex;justify-content:space-between;gap:10px;font-size:calc(10px * var(--ts));color:var(--ink-dim);
+  font-variant-numeric:tabular-nums;padding:1px 0}
+.tip .tr b{color:var(--ink)}
+.tip .td{font-size:calc(10px * var(--ts));color:var(--ink-dim);line-height:1.45;margin-top:4px}
+
+.coach{position:fixed;z-index:40;width:min(258px,calc(100vw - 20px));background:#1b2a1a;
+  border:1px solid #3d5c33;box-shadow:inset 2px 0 0 var(--conv),0 14px 34px rgba(0,0,0,.62);
+  padding:9px 11px 10px;font-size:calc(11px * var(--ts));line-height:1.5;color:#d3e9c0;pointer-events:none;
+  animation:attract 2.6s ease-in-out infinite}
+.coach[hidden]{display:none}
+.coach .step{display:block;font-size:calc(9px * var(--ts));letter-spacing:.2em;text-transform:uppercase;
+  color:var(--conv);font-weight:700;margin-bottom:3px}
+.coach .arw{position:absolute;width:9px;height:9px;background:#1b2a1a;border:1px solid #3d5c33;
+  border-left:none;border-top:none;transform:rotate(45deg)}
+.desk.flash{animation:deskflash 1.15s ease-out 1}
+@keyframes deskflash{
+  0%,100%{box-shadow:inset 0 0 0 rgba(143,217,74,0)}
+  25%    {box-shadow:inset 0 0 0 1px var(--conv),0 0 16px rgba(143,217,74,.28)}
+}
+/* Before kickoff nothing but the splash is live. The overlay is a child of
+   .board, so the canvas is dimmed directly rather than its container. */
+.shell.presplash .rail,.shell.presplash .osc,.shell.presplash .wire,
+.shell.presplash .abils,.shell.presplash .desk,.shell.presplash .controls{
+  filter:grayscale(1) brightness(.3);opacity:.32;pointer-events:none}
+.shell.presplash #gl{filter:saturate(.04) brightness(.22)}
+
+/* Walkthrough spotlight: only the row the current step is about stays lit. */
+.shell.coaching .rail,.shell.coaching .osc,.shell.coaching .wire,.shell.coaching .abils,
+.shell.coaching .desk,.shell.coaching .board,.shell.coaching .controls{
+  filter:grayscale(1) brightness(.5);opacity:.55;
+  transition:filter .28s ease,opacity .28s ease}
+.shell.coach1 .desk,.shell.coach2 .controls,.shell.coach3 .board,.shell.coach4 .controls{filter:none;opacity:1}
+/* step 1 lights the floor only once something is armed to place */
+.shell.coach1.armed .board{filter:none;opacity:1}
+.shell.coach2 .ctl,.shell.coach4 .ctl{filter:grayscale(1);opacity:.4}
+.shell.coach2 #c-wave,.shell.coach4 #c-menu{filter:none;opacity:1;
+  animation:attract 2.6s ease-in-out infinite}
+/* step 4 with the position menu still open: the floor is the subject, not the
+   controls - greying it made affordable upgrades read as disabled */
+.shell.coach4.menu .board{filter:none;opacity:1}
+.shell.coach4.menu .controls{filter:grayscale(1) brightness(.5);opacity:.55}
+.shell.coach4.menu .ctl,.shell.coach4.menu #c-menu{filter:grayscale(1);opacity:.4;animation:none}
+/* waiting for cash: the speed control is the only thing worth touching */
+.shell.coachspeed .controls{filter:none;opacity:1}
+.shell.coachspeed .ctl{filter:grayscale(1);opacity:.4}
+.shell.coachspeed #c-speed{filter:none;opacity:1;animation:attract 2.6s ease-in-out infinite}
+
+/* A threat briefing holds the whole game, so the whole game should look held.
+   The card lives inside .board, so the canvas is dimmed rather than its parent. */
+.shell.briefing .rail,.shell.briefing .osc,.shell.briefing .wire,.shell.briefing .abils,
+.shell.briefing .desk,.shell.briefing .controls,.shell.briefing .statrail,.shell.briefing .tpop{
+  filter:grayscale(1) brightness(.45);opacity:.5;transition:filter .3s,opacity .3s;
+  pointer-events:none}
+
+/* ---------------- accessibility ---------------- */
+/* --ink-faint measured 2.50:1 against the panel - below the 4.5 threshold and
+   it carries headers, labels and every idle state. */
+body.hc{--ink-dim:#adbace;--ink-faint:#8794ab;--line:rgba(150,175,215,.34)}
+body.hc .pos,body.hc .ab,body.hc .cellstat{box-shadow:inset 0 0 0 1px rgba(150,175,215,.16)}
+body.hc .btn{border-color:#3f5175}
+body.no-motion *{animation:none!important}
+
+/* A result screen owns the display - margin call or thesis confirmed alike. */
+.shell.halted .rail,.shell.halted .osc,.shell.halted .wire,.shell.halted .abils,
+.shell.halted .desk,.shell.halted .controls{
+  filter:grayscale(1) brightness(.22);opacity:.28;pointer-events:none;
+  transition:filter .6s ease,opacity .6s ease}
+.shell.halted #gl{filter:grayscale(.92) brightness(.26);transition:filter .8s ease}
+.overlay.win{background:radial-gradient(130% 90% at 50% 34%,rgba(24,58,20,.6),rgba(4,8,10,.975) 68%)}
+.overlay.win h2{color:var(--phos);font-size:clamp(23px,7.2vw,34px);letter-spacing:.32em;
+  text-shadow:0 0 34px rgba(242,193,78,.4)}
+.overlay.win .ov-rule{background:linear-gradient(90deg,transparent,var(--conv),transparent)}
+.overlay.fatal{background:radial-gradient(130% 90% at 50% 34%,rgba(74,10,17,.55),rgba(4,6,12,.975) 68%)}
+.overlay.fatal h2{color:var(--red);font-size:clamp(23px,7.2vw,34px);letter-spacing:.32em;
+  text-shadow:0 0 34px rgba(239,91,91,.45)}
+.ov-rule{height:1px;background:linear-gradient(90deg,transparent,var(--red),transparent);margin:2px 0 14px}
+.ov-stats{display:grid;grid-template-columns:1fr auto;gap:0 16px;margin:0 auto 16px;
+  max-width:290px;text-align:left}
+.ov-stats span{font-size:calc(9.5px * var(--ts));letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);
+  padding:5px 0;border-bottom:1px solid var(--line)}
+.ov-stats b{font-size:calc(15px * var(--ts));font-weight:700;text-align:right;color:var(--ink);
+  font-variant-numeric:tabular-nums;padding:5px 0;border-bottom:1px solid var(--line)}
+
+/* A pause you asked for beats every spotlight: nothing but Resume stays legible. */
+.shell.paused.coaching .rail,.shell.paused.coaching .osc,.shell.paused.coaching .wire,
+.shell.paused.coaching .abils,.shell.paused.coaching .desk,.shell.paused.coaching .board,
+.shell.paused.coaching .controls{filter:grayscale(1) brightness(.5)!important;opacity:.55!important}
+.shell.paused .coach{display:none}
+
+/* Paused: the whole board goes inactive so Resume is the only live control. */
+.shell.paused .rail,.shell.paused .osc,.shell.paused .wire,.shell.paused .abils,
+.shell.paused .desk,.shell.paused .coach,.shell.paused .statrail,.shell.paused .tpop{
+  filter:grayscale(1) brightness(.66);opacity:.7}
+.shell.paused #gl{filter:saturate(.1) brightness(.38)}
+.shell.paused .ctl,.shell.paused .ctl.primary{background:var(--wafer);color:var(--ink-faint)}
+.shell.paused .ctl b,.shell.paused .ctl .cnt{color:var(--ink-faint)}
+.shell.paused .ctl.act{animation:none;box-shadow:none}
+.shell.paused #c-pause{background:#1d2c1c;color:var(--conv);
+  box-shadow:inset 2px 0 0 var(--conv);animation:attract 2.6s ease-in-out infinite}
+/* Landscape on a phone: the layout is portrait-only, so ask rather than degrade.
+   Driven by CSS so it still appears if scripting is having a bad day. */
+#rotate{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+  background:radial-gradient(120% 90% at 50% 40%,#101828,#05070d 70%);padding:24px;text-align:center}
+#rotate .rot-inner{max-width:420px}
+#rotate h2{font-size:calc(15px * var(--ts));letter-spacing:.26em;text-transform:uppercase;margin:18px 0 8px;color:var(--ink)}
+#rotate p{font-size:calc(12px * var(--ts));line-height:1.7;color:var(--ink-dim);margin:0}
+#rotate .rot-icon{display:flex;justify-content:center}
+#rotate .rot-icon span{display:block;width:44px;height:70px;border:2px solid var(--trace);
+  border-radius:7px;position:relative;animation:rotnudge 2.6s ease-in-out infinite}
+#rotate .rot-icon span::after{content:'';position:absolute;left:50%;bottom:5px;transform:translateX(-50%);
+  width:14px;height:2px;border-radius:2px;background:var(--trace)}
+@keyframes rotnudge{0%,55%,100%{transform:rotate(-90deg)}75%,92%{transform:rotate(0deg)}}
+@media (orientation:landscape) and (max-height:520px){ #rotate{display:flex} }
+/* ...unless the physical screen is upright. A short, wide window on an upright
+   phone (split screen, freeform window) is not a rotation problem, and asking
+   someone to turn a phone they are already holding correctly is a dead end.
+   JS adds .upright; without JS the query above still governs, as before. */
+html.upright #rotate{display:none!important}
+@media (prefers-reduced-motion:reduce){ #rotate .rot-icon span{animation:none;transform:rotate(0deg)} }
+
+.scrim{position:fixed;inset:0;z-index:19;background:rgba(5,8,15,.6);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.scrim[hidden]{display:none}
+.grip{display:none}
+
+/* ============ phone: one screen, no page scroll ============ */
+@media (max-width:760px){
+  html,body{height:100%;width:100%;overflow:hidden}
+  .shell{height:100vh;height:100dvh;width:100%;max-width:100%;padding:0;
+    display:flex;flex-direction:column;overflow:hidden}
+  .mast{display:none}
+  .grid{display:flex;flex-direction:column;flex:1;min-height:0;gap:0;width:100%;max-width:100%}
+  .play{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;max-width:100%}
+
+  /* Flex and grid items default to min-width:auto, so the horizontally
+     scrolling desk rail would otherwise stretch the whole column and push
+     the floor off-screen. Every row is pinned to the viewport width. */
+  .shell,.grid,.play,.rail,.osc,.board,.wire,.abils,.desk,.controls{min-width:0;max-width:100%}
+  .cellstat,.ab,.pos,.ctl,.osc-chart,.osc-read,.wire-body{min-width:0}
+
+  .rail{grid-template-columns:repeat(4,1fr);margin:0;border-left:none;border-right:none;flex:0 0 auto}
+  .cellstat{padding:4px 8px 5px}
+  .cellstat .k{font-size:calc(8px * var(--ts));letter-spacing:.14em}
+  .cellstat .v{font-size:calc(15px * var(--ts));line-height:1.15}
+  .cellstat.extra{display:none}
+
+  .osc{display:flex;align-items:stretch;height:38px;flex:0 0 auto;border-left:none;border-right:none}
+  .osc canvas{height:38px}
+  .osc-read .phase{font-size:calc(11px * var(--ts))}
+
+  .board{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
+    margin:0;border-left:none;border-right:none;overflow:hidden}
+  #gl{max-width:100%;max-height:100%;width:auto;height:auto}
+
+  .wire{flex:0 0 auto;padding:4px 9px 5px;border-left:none;border-right:none}
+  .wire-head{margin-bottom:3px;font-size:calc(8.5px * var(--ts));letter-spacing:.14em}
+  .wire-body{flex-wrap:nowrap;overflow-x:auto;min-height:0;scrollbar-width:none}
+  .wire-body::-webkit-scrollbar{display:none}
+  .tick{margin:0 4px 0 0;font-size:calc(8.5px * var(--ts));letter-spacing:.1em;padding:2px 4px}
+
+  .abils{flex:0 0 auto;border-left:none;border-right:none}
+  .ab{min-height:0;padding:7px 9px 8px}
+  .ab>b{font-size:calc(10.5px * var(--ts));letter-spacing:.06em}
+  .ab>em{font-size:calc(9.5px * var(--ts));letter-spacing:.12em;margin-top:3px}
+  .ab .k{top:4px;right:6px}
+
+  .desk{display:flex;overflow-x:auto;gap:1px;flex:0 0 auto;scrollbar-width:none;
+    border-left:none;border-right:none;
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent);
+    mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent)}
+  .desk::-webkit-scrollbar{display:none}
+  .pos{flex:0 0 auto;width:96px;padding:7px 8px 8px}
+  .pos .hk{display:none}
+  .pos .nm{font-size:calc(9.5px * var(--ts));letter-spacing:.02em;margin:3px 0 3px;line-height:1.15}
+  .pos .pr{font-size:calc(12px * var(--ts))}
+  .pos .tick{font-size:calc(8px * var(--ts));padding:1px 4px;margin:0}
+
+  .controls{flex:0 0 auto;border-left:none;border-right:none;
+    padding-bottom:env(safe-area-inset-bottom)}
+  .ctl{flex:1 1 0;padding:13px 3px;font-size:calc(10.5px * var(--ts));letter-spacing:.06em}
+  .ctl.primary{flex:1.7 1 0}
+  .ctl.narrow{flex:1 1 0}
+  .legend{display:none}
+
+  /* the book becomes a bottom sheet; opening it pauses the game */
+  .side{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:20;max-height:82vh;max-height:82dvh;
+    display:flex;flex-direction:column;border-left:none;border-right:none;
+    border-top:1px solid var(--trace);box-shadow:0 -18px 46px rgba(0,0,0,.72);
+    transform:translateY(101%);transition:transform .28s cubic-bezier(.2,.8,.25,1);
+    padding-bottom:env(safe-area-inset-bottom)}
+  .side.open{transform:none}
+  .grip{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:7px 12px 6px;border-bottom:1px solid var(--line);flex:0 0 auto}
+  .grip .bar{width:38px;height:3px;border-radius:2px;background:#2c3b5c}
+  .grip-x{background:none;border:none;color:var(--ink-dim);font-family:inherit;font-size:calc(20px * var(--ts));
+    line-height:1;cursor:pointer;padding:6px 10px;margin:-6px -8px -6px 0}
+  .grip-x:hover{color:var(--ink)}
+  .tabs{flex:0 0 auto}
+  .tab{height:42px;padding:0 2px;font-size:calc(9px * var(--ts));letter-spacing:.04em}
+  .pane{flex:1 1 auto;max-height:none;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 13px 20px}
+
+  .tpop{width:min(206px,calc(100% - 14px))}
+  .brief-card{padding:12px 13px 10px}
+  .brief-card .n{font-size:calc(16px * var(--ts))}
+  .brief-card .d,.brief-card .c{font-size:calc(11.5px * var(--ts))}
+  .overlay{padding:14px}
+  .overlay p{max-width:100%}
+  .overlay .btn{max-width:100%!important}
+  .overlay h2{font-size:calc(18px * var(--ts));letter-spacing:.14em}
+  .overlay p{font-size:calc(11.5px * var(--ts));line-height:1.6}
+  .stat{min-width:110px}
+}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="mast">
+    <h1>Silicon <b>Cycle</b></h1>
+    <span class="sub">Portfolio defense · fab floor 01</span>
+  </header>
+
+  <div class="rail">
+    <div class="cellstat"><div class="k">NAV</div><div class="v nav" id="s-nav">100%</div></div>
+    <div class="cellstat"><div class="k">Cash</div><div class="v cash" id="s-cash">$0</div></div>
+    <div class="cellstat"><div class="k">Conviction</div><div class="v conv" id="s-conv">0</div></div>
+    <div class="cellstat"><div class="k">Wave</div><div class="v wave" id="s-wave">0</div></div>
+    <div class="cellstat extra"><div class="k">Book DPS</div><div class="v" id="s-dps">0</div></div>
+    <div class="cellstat extra"><div class="k">Positions</div><div class="v" id="s-pos">0</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="play">
+      <section class="osc" id="osc-strip">
+        <div class="osc-chart"><canvas id="osc"></canvas><span class="lbl">Silicon cycle</span></div>
+        <div class="osc-read">
+          <div class="phase" id="osc-phase">MID</div>
+          <div class="hint" id="osc-hint"></div>
+        </div>
+      </section>
+
+      <div class="board">
+        <canvas id="gl"></canvas>
+        <div class="statrail" id="statrail"></div>
+        <div class="tpop" id="tpop" hidden></div>
+        <div class="brief" id="brief" hidden>
+          <div class="brief-card">
+            <div class="t">New threat &middot; wave <span id="brief-w"></span></div>
+            <div class="n" id="brief-n"></div>
+            <div class="d" id="brief-d"></div>
+            <div class="c" id="brief-c"></div>
+            <div class="bar"><i id="brief-bar"></i></div>
+            <div class="hint" id="brief-hint"></div>
+          </div>
+        </div>
+        <div class="overlay" id="overlay">
+          <div>
+            <h2 id="ov-t">Silicon Cycle</h2>
+            <p id="ov-p">Bear forces walk the fab floor toward your book. Build positions across the semiconductor stack to stop them.<br><br>
+            The cycle is <b>knowable</b> — the oscillator forecasts the next 30 seconds. Build in the downcycle when positions are cheap; harvest in the upcycle when clears pay more. Positions <b>compound</b> the longer you hold them, and pay a dividend every wave. Selling for quick cash resets all of it.</p>
+            <button class="btn go" id="ov-b" style="max-width:300px;margin:0 auto;text-align:center">Open the book<small style="text-align:center">Walks you through your first position, upgrade and thesis.</small></button>
+            <button class="btn" id="ov-skip" style="max-width:300px;margin:6px auto 0;text-align:center">Skip the walkthrough<small style="text-align:center">Straight to the floor at full speed.</small></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="wire" id="wire">
+        <div class="wire-head"><span id="wire-title"></span><span id="wire-sub"></span></div>
+        <div class="wire-body" id="wire-body"></div>
+      </div>
+
+      <div class="abils">
+        <button class="ab" id="ab-halt"><i class="fill"></i><b></b><em></em><span class="k">Q</span></button>
+        <button class="ab" id="ab-tiger"><i class="fill"></i><b></b><em></em><span class="k">W</span></button>
+      </div>
+
+      <div class="desk" id="desk"></div>
+
+      <div class="controls">
+        <button class="ctl primary" id="c-wave">Start wave</button>
+        <button class="ctl narrow" id="c-speed">1&times;</button>
+        <button class="ctl narrow" id="c-pause">Pause</button>
+        <button class="ctl narrow" id="c-menu">Book</button>
+      </div>
+
+      <div class="legend">
+        <kbd>1</kbd>–<kbd>7</kbd> arm position · <kbd>Q</kbd> halt · <kbd>W</kbd> tiger team · <kbd>Space</kbd> start wave · <kbd>F</kbd> speed · <kbd>P</kbd> pause · <kbd>U</kbd> upgrade · <kbd>Esc</kbd> cancel · hover a position for a summary
+      </div>
+    </div>
+
+    <aside class="side" id="side">
+      <div class="grip"><span class="bar"></span><button class="grip-x" id="sheet-x" aria-label="Close">&times;</button></div>
+      <div class="tabs">
+        <i class="tab-ind" id="tab-ind"></i>
+        <button class="tab on" data-pane="position"><span class="tl">Position</span></button>
+        <button class="tab" data-pane="thesis"><span class="tl">Thesis</span></button>
+        <button class="tab" data-pane="codex"><span class="tl">Threats</span></button>
+        <button class="tab" data-pane="cycle"><span class="tl">Cycle</span></button>
+        <button class="tab" data-pane="access" aria-label="Display and accessibility"><span class="tl">Display</span></button>
+      </div>
+      <div class="pane" id="pane"></div>
+    </aside>
+  </div>
+</div>
+<div id="rotate">
+  <div class="rot-inner">
+    <div class="rot-icon"><span></span></div>
+    <h2>Portrait only</h2>
+    <p>Silicon Cycle runs upright, so the floor is held here. If your phone is already upright, the browser has only part of the screen &mdash; give it the full height to carry on.</p>
+  </div>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<div class="tip" id="tip" hidden></div>
+<div class="coach" id="coach" hidden><i class="arw"></i><span class="step"></span><span class="body"></span></div>
+
+<script>
+/* Silicon Cycle - MIT License - Copyright (c) 2026 Mark, Florentino LLC */
+window.addEventListener('error',function(ev){
+  /* A throw during init would otherwise leave the splash up with dead controls.
+     Say what happened instead of failing silently. */
+  try{
+    var o=document.getElementById('overlay');
+    if(!o||o.dataset.failed)return;
+    o.dataset.failed='1';
+    o.classList.remove('hidden');
+    document.getElementById('ov-t').textContent='Could not start';
+    document.getElementById('ov-p').textContent=String((ev&&ev.message)||'Unknown error')+
+      ' - try reloading, or open this file directly in a browser.';
+    var sk=document.getElementById('ov-skip'); if(sk)sk.style.display='none';
+    var b=document.getElementById('ov-b'); if(b){b.textContent='Reload';b.onclick=function(){location.reload();};}
+  }catch(e){}
+});
+(function(){
+'use strict';
+
+/* ============================================================
+   0. CONSTANTS & HELPERS
+   ============================================================ */
+/* Decided by the SHORT side, not the current orientation: a phone held sideways
+   is still a phone, and it must not load the wide desktop map only to be rotated
+   back a second later. */
+/* Measured from the physical screen where possible. window.inner* describes the
+   window, which can be short and wide on an upright phone; screen.* cannot. */
+var SCR_W = (window.screen && screen.width)  || 0;
+var SCR_H = (window.screen && screen.height) || 0;
+var SHORT_SIDE = (SCR_W && SCR_H) ? Math.min(SCR_W, SCR_H)
+                                  : Math.min(window.innerWidth||9999, window.innerHeight||9999);
+var PHONE = SHORT_SIDE < 560;
+var PORTRAIT = PHONE || window.innerHeight>window.innerWidth*1.05;
+var IS_TOUCH = ('ontouchstart' in window)||navigator.maxTouchPoints>0;
+/* Ground truth for "the phone is actually sideways", in descending order of
+   trust. If nothing here answers, fall through to true and let the viewport
+   decide, which is the pre-existing behaviour. */
+function deviceLandscape(){
+  var so = window.screen && screen.orientation;
+  if(so && typeof so.type === 'string') return so.type.indexOf('landscape') === 0;
+  if(typeof window.orientation === 'number') return Math.abs(window.orientation) === 90;
+  if(SCR_W && SCR_H) return SCR_W !== SCR_H ? SCR_W > SCR_H : true;
+  return true;
+}
+/* Mirrors that onto <html> so the CSS prompt can be suppressed. Returns whether
+   the device is upright. */
+function syncUpright(){
+  var up = !deviceLandscape();
+  document.documentElement.classList.toggle('upright', up);
+  return up;
+}
+syncUpright();
+/* Devices with a real hovering cursor preview on hover; everything else needs
+   an explicit confirm step, so a stray tap never spends cash. */
+var HOVER_OK = !!(window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches);
+var CELL=44;
+var COLS = PORTRAIT?13:24, ROWS = PORTRAIT?14:14;
+var W=COLS*CELL, H=ROWS*CELL;
+var HUD_BASE = PORTRAIT?13:11;
+var HUD = HUD_BASE;      /* in-world text size, scaled by the text setting */
+var MARK = 1;            /* board marker scale, for low vision */
+/* Kept outside G so it survives a new run - a display preference is not part
+   of a playthrough. No storage is available here, so it lasts the session. */
+var A11Y = {ts:1, hc:false, motion:false, marks:false};
+function applyA11y(){
+  document.documentElement.style.setProperty('--ts',A11Y.ts);
+  document.body.classList.toggle('hc',A11Y.hc);
+  document.body.classList.toggle('no-motion',A11Y.motion);
+  HUD = HUD_BASE*A11Y.ts;
+  if(typeof placeTabIndicator==='function')placeTabIndicator();
+  MARK = A11Y.marks?1.3:1;
+  if(typeof resize==='function')resize();
+}
+
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function hex(h,a){var n=parseInt(h.slice(1),16);return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255,a===undefined?1:a];}
+function withA(c,a){return [c[0],c[1],c[2],a];}
+function fmt(n){n=Math.round(n);return n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':''+n;}
+function money(n){return '$'+fmt(n);}
+function rgba(h,a){var n=parseInt(h.slice(1),16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';}
+/* {key} -> position name in its own colour, {key|A} -> that branch's name,
+   {!ability} -> ability name. Names come straight from the definitions, so the
+   card can never say something the desk does not. */
+/* One place decides what counts as an available action, so every surface
+   shows the same green/grey answer. */
+function actionsAvailable(){
+  var out={thesis:0,position:0,build:0};
+  for(var i=0;i<THESIS.length;i++){
+    var n=THESIS[i], lvl=G.th[n.id];
+    if(lvl<n.max&&G.conv>=n.cost[lvl])out.thesis++;
+  }
+  for(var j=0;j<G.towers.length;j++){
+    var t=G.towers[j];
+    if(t.level<4&&G.cash>=upCost(t))out.position++;
+  }
+  for(var k=0;k<TKEYS.length;k++){
+    if(G.cash>=buyCost(TKEYS[k]))out.build++;
+  }
+  /* the badge sits next to a conviction figure, so it must mean conviction -
+     floor upgrades are spent on the floor, not in the Book */
+  out.book=out.thesis;
+  return out;
+}
+
+/* Single source of truth for the floor marker on a position, so "ringed but
+   nothing to buy" cannot happen through some branch of the render code. */
+function ringState(t){
+  if(t.level>=4)return 'none';
+  var can=G.cash>=upCost(t);
+  var pending=t.level===1&&!t.branch;
+  if(!can)return pending?'branch':'none';          /* cannot pay -> never an attractor */
+  if(pending||(G.coachOn&&G.coachStep===3)||!G.firstUpgradeDone)return 'rings';
+  return 'pip';
+}
+
+function counterHTML(str){
+  return String(str).replace(/\{(!?)([a-z]+)(?:\|([AB]))?\}/g,function(all,bang,key,br){
+    if(bang){
+      var A=ABIL[key];
+      if(!A)return all;
+      return '<b class="ctow" style="color:'+A.color+'">'+A.name.toUpperCase()+'</b>';
+    }
+    var D=TOWERS[key];
+    if(!D)return all;
+    var label=br?(br==='A'?D.branchA.n:D.branchB.n):D.name;
+    return '<b class="ctow" style="color:'+D.color+'">'+label+'</b>';
+  });
+}
+function tickHTML(sym,color){
+  return '<span class="tick" style="color:'+color+';border-color:'+rgba(color,0.38)+';background:'+rgba(color,0.10)+'">'+sym+'</span>';
+}
+
+/* ============================================================
+   1. WEBGL RENDERER  (SDF quad batcher + bitmap font atlas)
+   ============================================================ */
+var qc=0, blendMode='normal';
+var canvas=document.getElementById('gl');
+var gl=canvas.getContext('webgl2',{alpha:false,antialias:true})||canvas.getContext('webgl',{alpha:false,antialias:true});
+if(!gl){
+  document.getElementById('ov-t').textContent='No WebGL';
+  document.getElementById('ov-p').textContent='This browser could not create a WebGL context, so the fab floor cannot render. Try a different browser or enable hardware acceleration.';
+  document.getElementById('ov-b').style.display='none';
+  return;
+}
+
+var VS=[
+'attribute vec2 a_pos;','attribute vec2 a_local;','attribute vec4 a_color;','attribute vec4 a_data;',
+'uniform vec2 u_res;',
+'varying vec2 v_local;','varying vec4 v_color;','varying vec4 v_data;',
+'void main(){',
+'  vec2 c=(a_pos/u_res)*2.0-1.0; c.y=-c.y;',
+'  gl_Position=vec4(c,0.0,1.0);',
+'  v_local=a_local; v_color=a_color; v_data=a_data;',
+'}'].join('\n');
+
+var FS=[
+'precision mediump float;',
+'varying vec2 v_local;','varying vec4 v_color;','varying vec4 v_data;',
+'uniform sampler2D u_tex;',
+'float sdBox(vec2 p,float r){vec2 d=abs(p)-vec2(0.94-r);return length(max(d,0.0))+min(max(d.x,d.y),0.0)-r;}',
+'float sdHex(vec2 p,float r){const vec3 k=vec3(-0.8660254,0.5,0.5773503);p=abs(p);p-=2.0*min(dot(k.xy,p),0.0)*k.xy;p-=vec2(clamp(p.x,-k.z*r,k.z*r),r);return length(p)*sign(p.y);}',
+'float sdTri(vec2 p,float r){const float k=1.7320508;p.x=abs(p.x)-r;p.y=p.y+r/k;if(p.x+k*p.y>0.0)p=vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;p.x-=clamp(p.x,-2.0*r,0.0);return -length(p)*sign(p.y);}',
+'void main(){',
+'  float shape=v_data.x, param=v_data.y, soft=max(v_data.z,0.0008), mode=v_data.w;',
+'  float alpha;',
+'  if(mode>0.5){ alpha=texture2D(u_tex,v_local).a; }',
+'  else if(shape>5.5){ alpha=pow(max(0.0,1.0-length(v_local)),2.2); }',
+'  else {',
+'    vec2 p=v_local; float d=0.0;',
+'    if(shape<0.5) d=length(p)-0.92;',
+'    else if(shape<1.5) d=sdBox(p,param);',
+'    else if(shape<2.5) d=sdHex(p,0.88);',
+'    else if(shape<3.5) d=abs(length(p)-(0.92-param))-param;',
+'    else if(shape<4.5) d=sdTri(p,0.84);',
+'    else d=(abs(p.x)+abs(p.y))*0.70711-0.66;',
+'    alpha=1.0-smoothstep(-soft,soft,d);',
+'  }',
+'  if(alpha<=0.002) discard;',
+'  gl_FragColor=vec4(v_color.rgb,v_color.a*alpha);',
+'}'].join('\n');
+
+function sh(type,src){var s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+var FPV=12, VPQ=6, MAXQ=9000;
+var vbuf=new Float32Array(MAXQ*VPQ*FPV);
+var stride=FPV*4;
+var FONT_COLS=16, FONT_CELL=32;
+var prog,A_pos,A_loc,A_col,A_dat,U_res,U_tex,glbuf,glyphTex,fontCanvas;
+var glLost=false;
+
+function buildFontCanvas(){
+  var c=document.createElement('canvas');c.width=FONT_COLS*FONT_CELL;c.height=6*FONT_CELL;
+  var x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);
+  x.fillStyle='#fff';x.textAlign='center';x.textBaseline='middle';
+  x.font='700 25px ui-monospace, Menlo, Consolas, monospace';
+  for(var i=32;i<128;i++){var n=i-32;
+    x.fillText(String.fromCharCode(i),(n%FONT_COLS)*FONT_CELL+FONT_CELL/2,Math.floor(n/FONT_COLS)*FONT_CELL+FONT_CELL/2+1);}
+  return c;
+}
+
+/* Everything GPU-side lives here so it can be rebuilt from scratch after a
+   context loss - which is exactly what iOS does when the tab sits in the
+   background for a while. */
+function initGL(){
+  prog=gl.createProgram();
+  gl.attachShader(prog,sh(gl.VERTEX_SHADER,VS));
+  gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FS));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  A_pos=gl.getAttribLocation(prog,'a_pos');
+  A_loc=gl.getAttribLocation(prog,'a_local');
+  A_col=gl.getAttribLocation(prog,'a_color');
+  A_dat=gl.getAttribLocation(prog,'a_data');
+  U_res=gl.getUniformLocation(prog,'u_res');
+  U_tex=gl.getUniformLocation(prog,'u_tex');
+
+  glbuf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,glbuf);
+  gl.bufferData(gl.ARRAY_BUFFER,vbuf.byteLength,gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(A_pos);gl.vertexAttribPointer(A_pos,2,gl.FLOAT,false,stride,0);
+  gl.enableVertexAttribArray(A_loc);gl.vertexAttribPointer(A_loc,2,gl.FLOAT,false,stride,8);
+  gl.enableVertexAttribArray(A_col);gl.vertexAttribPointer(A_col,4,gl.FLOAT,false,stride,16);
+  gl.enableVertexAttribArray(A_dat);gl.vertexAttribPointer(A_dat,4,gl.FLOAT,false,stride,32);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.uniform1i(U_tex,0);
+
+  if(!fontCanvas)fontCanvas=buildFontCanvas();
+  glyphTex=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,glyphTex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,fontCanvas);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D,glyphTex);
+
+  qc=0; blendMode='normal';
+}
+initGL();
+
+canvas.addEventListener('webglcontextlost',function(ev){ev.preventDefault();glLost=true;});
+canvas.addEventListener('webglcontextrestored',function(){
+  glLost=false; initGL(); resize(); render();
+});
+
+var LX=[-1,1,1,-1], LY=[-1,-1,1,1], IDX=[0,1,2,0,2,3];
+
+function flush(){
+  if(qc===0)return;
+  gl.bufferSubData(gl.ARRAY_BUFFER,0,vbuf.subarray(0,qc*VPQ*FPV));
+  gl.drawArrays(gl.TRIANGLES,0,qc*VPQ);
+  qc=0;
+}
+function setBlend(m){
+  if(m===blendMode)return;
+  flush();blendMode=m;
+  if(m==='add')gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  else gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+}
+function quad(x,y,hw,hh,rot,col,shape,param,mode,uv){
+  if(qc>=MAXQ)flush();
+  var c=Math.cos(rot||0), s=Math.sin(rot||0);
+  var soft=1.35/Math.max(1.5,Math.max(Math.abs(hw),Math.abs(hh)));
+  var o=qc*VPQ*FPV;
+  for(var k=0;k<6;k++){
+    var i=IDX[k], px=LX[i]*hw, py=LY[i]*hh;
+    vbuf[o++]=x+px*c-py*s; vbuf[o++]=y+px*s+py*c;
+    if(mode===1){
+      vbuf[o++]=(i===0||i===3)?uv[0]:uv[2];
+      vbuf[o++]=(i===0||i===1)?uv[1]:uv[3];
+    }else{ vbuf[o++]=LX[i]; vbuf[o++]=LY[i]; }
+    vbuf[o++]=col[0];vbuf[o++]=col[1];vbuf[o++]=col[2];vbuf[o++]=col[3];
+    vbuf[o++]=shape;vbuf[o++]=param||0;vbuf[o++]=soft;vbuf[o++]=mode||0;
+  }
+  qc++;
+}
+function line(x1,y1,x2,y2,wid,col,round){
+  var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<0.001)return;
+  quad((x1+x2)/2,(y1+y2)/2,len/2,wid/2,Math.atan2(dy,dx),col,1,round===undefined?0.05:round,0);
+}
+var GW=FONT_CELL/(FONT_COLS*FONT_CELL), GH=FONT_CELL/(6*FONT_CELL);
+/* centred text that will not run off the edge of the floor */
+function textFit(str,x,y,size,col){
+  var half=String(str).length*size*0.60/2;
+  text(str,clamp(x,half+5,W-half-5),y,size,col,'center');
+}
+function text(str,x,y,size,col,align){
+  str=String(str);
+  var adv=size*0.60, half=size*0.62;
+  var start=x;
+  if(align==='center')start=x-str.length*adv/2+adv/2;
+  else if(align==='right')start=x-str.length*adv+adv/2;
+  else start=x+adv/2;
+  for(var i=0;i<str.length;i++){
+    var code=str.charCodeAt(i);
+    if(code===32)continue;
+    if(code<32||code>127)code=63;
+    var n=code-32, cx=n%FONT_COLS, cy=Math.floor(n/FONT_COLS);
+    quad(start+i*adv,y,half,half,0,col,0,0,1,[cx*GW,cy*GH,(cx+1)*GW,(cy+1)*GH]);
+  }
+}
+
+var dpr=Math.min(window.devicePixelRatio||1,2);
+function resize(){
+  canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.uniform2f(U_res,W,H);
+}
+window.addEventListener('resize',function(){resize();wake();if(typeof placeTabIndicator==='function')placeTabIndicator();});
+
+/* Coming back from the background: rAF has been parked, the clock is stale and
+   on some devices the drawing buffer has been thrown away. Re-sync and repaint. */
+function wake(){
+  if(!G||!G.towers)return;
+  last=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+  if(gl.isContextLost&&gl.isContextLost()){glLost=true;return;}
+  resize();
+  lastPaneHtml=null; lastWire=''; lastPop='';
+  try{ syncUI(); }catch(e){}
+  render();
+}
+document.addEventListener('visibilitychange',function(){ if(!document.hidden)wake(); });
+window.addEventListener('focus',wake);
+window.addEventListener('pageshow',wake);
+
+/* ============================================================
+   2. MAP — the fab floor route
+   ============================================================ */
+var WP_CELLS = PORTRAIT
+  ? [[2,-1],[2,2],[10,2],[10,5],[3,5],[3,8],[10,8],[10,11],[2,11],[2,14.5]]
+  : [[-1,3],[4,3],[4,7],[1,7],[1,11],[9,11],[9,2],[14,2],[14,9],[19,9],[19,5],[23.5,5]];
+var PATH=WP_CELLS.map(function(p){return {x:p[0]*CELL+CELL/2,y:p[1]*CELL+CELL/2};});
+var SEG=[],TOTAL=0;
+for(var i=0;i<PATH.length-1;i++){
+  var dx=PATH[i+1].x-PATH[i].x, dy=PATH[i+1].y-PATH[i].y, L=Math.hypot(dx,dy);
+  SEG.push({x:PATH[i].x,y:PATH[i].y,dx:dx/L,dy:dy/L,len:L,acc:TOTAL});
+  TOTAL+=L;
+}
+var REF_ROUTE = 58.5*CELL;          /* the route the balance was tuned against */
+var SPEED_NORM = REF_ROUTE/TOTAL;   /* keeps time-to-core identical on any map */
+/* The tiger team is paced by the route, not by a fixed px/s: a flat speed
+   covered 55% of the portrait map and only 33% of the landscape one, so it
+   expired halfway and never met the pack it was sent for. Derived from the
+   ability's own duration so the two can never drift apart. */
+function tigerSpeed(){ return TOTAL/ABIL.tiger.dur; }
+
+/* Perpendicular distance to the route plus how far along the route that point
+   sits - the second half is what lets us suggest an early pad rather than one
+   that only sees traffic in the last few seconds. */
+function pathProbe(px,py){
+  var best=1e9, along=0;
+  for(var i=0;i<SEG.length;i++){
+    var sg=SEG[i], vx=px-sg.x, vy=py-sg.y;
+    var t=clamp(vx*sg.dx+vy*sg.dy,0,sg.len);
+    var ex=vx-sg.dx*t, ey=vy-sg.dy*t, d=ex*ex+ey*ey;
+    if(d<best){best=d;along=sg.acc+t;}
+  }
+  return {d:Math.sqrt(best),s:along};
+}
+function pathAt(d){
+  d=clamp(d,0,TOTAL);
+  for(var i=0;i<SEG.length;i++){
+    var s=SEG[i];
+    if(d<=s.acc+s.len||i===SEG.length-1){
+      var t=d-s.acc;
+      return {x:s.x+s.dx*t,y:s.y+s.dy*t,a:Math.atan2(s.dy,s.dx)};
+    }
+  }
+  return {x:PATH[PATH.length-1].x,y:PATH[PATH.length-1].y,a:0};
+}
+function distToPath(px,py){
+  var best=1e9;
+  for(var i=0;i<SEG.length;i++){
+    var s=SEG[i], vx=px-s.x, vy=py-s.y;
+    var t=clamp(vx*s.dx+vy*s.dy,0,s.len);
+    var ex=vx-s.dx*t, ey=vy-s.dy*t;
+    var d=ex*ex+ey*ey; if(d<best)best=d;
+  }
+  return Math.sqrt(best);
+}
+var blocked=[];
+for(var gx=0;gx<COLS;gx++){blocked[gx]=[];
+  for(var gy=0;gy<ROWS;gy++){
+    blocked[gx][gy]=distToPath(gx*CELL+CELL/2,gy*CELL+CELL/2)<CELL*0.80;
+  }
+}
+var SUGGEST=null;   /* opening pad the walkthrough points at */
+var CORE = PORTRAIT
+  ? {x:2*CELL+CELL/2, y:H-CELL*0.62}
+  : {x:W-CELL*0.62, y:5*CELL+CELL/2};
+
+/* ============================================================
+   3. DEFINITIONS — positions, thesis, threats
+   ============================================================ */
+var TOWERS={
+  analog:{key:'analog',name:'ANALOG & POWER',tag:'ADI/TXN',cost:60,dmg:10,rate:1.2,range:3.0,shape:1,color:'#4fd3e8',
+    slow:0.32,slowT:1.3,
+    blurb:'Boring, durable, cycle-immune. Chills whatever it touches so everything else gets more shots off.',
+    branchA:{n:'PRICING DISCIPLINE',d:'Chill deepens to −55% speed and lasts 2.2s.'},
+    branchB:{n:'LONG-LIVED NODES',d:'+35% range, and this position pays a double dividend each wave.'}},
+  memory:{key:'memory',name:'MEMORY',tag:'MU/HYNIX',cost:85,dmg:17,rate:1.5,range:3.2,shape:5,color:'#a97bf0',cyclic:0.65,
+    blurb:'Cheapest damage on the board — but output swings hard with the cycle. Buy it in the trough.',
+    branchA:{n:'HBM PIVOT',d:'No downcycle penalty at all, +25% damage. Secular, not cyclical.'},
+    branchB:{n:'COMMODITY VOLUME',d:'+80% fire rate, but cycle swing amplified to ±95%.'}},
+  fabless:{key:'fabless',name:'FABLESS AI',tag:'NVDA/AMD',cost:150,dmg:12,rate:3.2,range:3.5,shape:4,color:'#5fe08a',
+    blurb:'Rapid fire. Small hits, so armor blunts it — but nothing strips a regenerating shield faster.',
+    branchA:{n:'CUDA MOAT',d:'Every hit arcs to 2 nearby threats for 55% damage.'},
+    branchB:{n:'ACCELERATOR ALPHA',d:'+30% crit chance and +60% damage against threats above half health.'}},
+  foundry:{key:'foundry',name:'FOUNDRY',tag:'TSM',cost:190,dmg:32,rate:0.9,range:3.4,shape:2,color:'#f2c14e',splash:1.15,
+    blurb:'Capacity for everyone. Splash damage that punishes tightly packed waves.',
+    branchA:{n:'ADVANCED NODE',d:'+45% damage and ignores 18 armor.'},
+    branchB:{n:'CAPACITY EXPANSION',d:'Splash radius +70% and +25% range.'}},
+  litho:{key:'litho',name:'EUV LITHOGRAPHY',tag:'ASML',cost:320,dmg:150,rate:0.40,range:6.2,shape:3,color:'#e0479e',beam:true,
+    blurb:'One supplier, no substitute. Enormous single-target beam at very long range — your answer to bosses.',
+    branchA:{n:'HIGH-NA',d:'+55% damage and ignores armor entirely.'},
+    branchB:{n:'MULTI-PATTERNING',d:'Fires twice per volley and +45% fire rate.'}},
+  wfe:{key:'wfe',name:'WFE / CAPEX',tag:'AMAT/LRCX',cost:170,support:'wfe',range:2.7,shape:2,color:'#8fb4ff',
+    blurb:'Sells nothing to the enemy — sells tools to your other positions. +30% fire rate in its radius.',
+    branchA:{n:'CAPEX SUPERCYCLE',d:'Fire-rate buff rises to +60%.'},
+    branchB:{n:'INSTALLED BASE',d:'+55% radius and the buff adds +20% damage.'}},
+  eda:{key:'eda',name:'EDA & IP',tag:'CDNS/SNPS',cost:140,support:'eda',range:3.6,shape:2,color:'#8fd94a',
+    blurb:'Design visibility. Reveals cloaked threats and hands nearby positions a +20% crit rate.',
+    branchA:{n:'FORMAL VERIFICATION',d:'Crit rate granted rises to +42%.'},
+    branchB:{n:'DESIGN ENABLEMENT',d:'+45% radius and revealed threats take +20% damage from everything.'}}
+};
+var TKEYS=['analog','memory','fabless','foundry','litho','wfe','eda'];
+
+var ENEMIES={
+  panic:{key:'panic',name:'RETAIL PANIC',hp:62,speed:52,bounty:10,leak:3,color:'#8fa0bd',shape:0,size:11,
+    d:'Undifferentiated selling. Shows up in bulk and does nothing clever.',
+    c:'Anything on the desk. {memory} or {analog} is the cheapest answer.'},
+  glut:{key:'glut',name:'MEMORY GLUT',hp:36,speed:80,bounty:6,leak:2,color:'#a97bf0',shape:5,size:9,
+    d:'Oversupply floods in — fast, fragile, and enormous in number.',
+    c:'{foundry} splash, or {fabless} on the {fabless|A} path.'},
+  export:{key:'export',name:'EXPORT CONTROLS',hp:215,speed:42,bounty:22,leak:5,armor:11,color:'#ef5b5b',shape:1,size:13,
+    d:'Heavy armor blunts every small hit — rapid fire barely scratches it.',
+    c:'{litho} on the {litho|A} path ignores armor outright, or {foundry} on {foundry|A}. Supply Diversification on the thesis tree also shaves armor.'},
+  short:{key:'short',name:'SHORT RAID',hp:78,speed:106,bounty:13,leak:3,slowImmune:true,color:'#f0913a',shape:4,size:10,
+    d:'Very fast and completely immune to being slowed down.',
+    c:'Raw rate of fire near the entrance — {fabless} stacked inside a {wfe} aura. {!halt} overrides the slow immunity outright.'},
+  dark:{key:'dark',name:'GRAY MARKET',hp:130,speed:66,bounty:19,leak:4,stealth:true,color:'#64748b',shape:2,size:11,
+    d:'Off-books channel. Untargetable until something reveals it.',
+    c:'{eda} — nothing else on the board can see it.'},
+  freeze:{key:'freeze',name:'CAPEX FREEZE',hp:540,speed:34,bounty:36,leak:7,regen:0.022,color:'#4fd3e8',shape:2,size:16,
+    d:'Huge health pool that heals 2.2% per second. Burst damage alone loses the race.',
+    c:'Sustained output: {memory} in an upcycle, or {analog} chill to buy your book more time.'},
+  hike:{key:'hike',name:'RATE HIKE',hp:160,speed:56,bounty:24,leak:5,shield:130,color:'#e879f9',shape:3,size:13,
+    d:'Carries a shield that fully regenerates after 3 quiet seconds.',
+    c:'{fabless} — high rate of fire breaks the shield before it can come back.'},
+  cascade:{key:'cascade',name:'INVENTORY CASCADE',hp:220,speed:50,bounty:19,leak:4,split:2,color:'#f2c14e',shape:2,size:14,
+    d:'Splits into two smaller cascades when it breaks. Clear it early on the route.',
+    c:'{foundry} splash near the entrance, so both fragments are caught in the same burst.'},
+  winter:{key:'winter',name:'SILICON WINTER',hp:2700,speed:26,bounty:190,leak:25,armor:22,boss:true,aura:true,color:'#8fb4ff',shape:2,size:26,
+    d:'A full downturn. Armored, and its aura cuts the fire rate of every position within 3 cells by 35%.',
+    c:'{litho} parked far from the route — its 6-cell range keeps it outside the aura while it fires. {!tiger} carves a chunk out of it too.'}
+};
+var EKEYS=['panic','glut','export','short','dark','freeze','hike','cascade','winter'];
+
+var ABIL={
+  halt:{id:'halt',name:'Circuit breaker',hot:'Q',need:34,color:'#4fd3e8',dur:5,
+    d:'Trading halt. Every threat on the floor drops to 30% speed for 5s, immunity or not.'},
+  tiger:{id:'tiger',name:'Tiger team',hot:'W',need:58,color:'#f2c14e',dur:11,
+    d:'Failure-analysis crew sweeps the entire route from the core outward in 11s, clearing what it passes.'}
+};
+
+var THESIS=[
+  {id:'moore',name:"MOORE'S LAW",max:5,cost:[4,6,9,13,18],d:'+8% damage on every position you own, per level.'},
+  {id:'ai',name:'AI DEMAND INFLECTION',max:3,cost:[6,10,15],d:'+12% fire rate for Fabless and Foundry, per level.'},
+  {id:'horizon',name:'LONG HORIZON',max:2,cost:[8,15],d:'Compounding and dividends scale up: ×2 at level 1, ×3 at level 2.'},
+  {id:'chips',name:'CHIPS ACT SUBSIDY',max:3,cost:[5,8,12],d:'+70 cash at the start of every wave, per level.'},
+  {id:'diverse',name:'SUPPLY DIVERSIFICATION',max:3,cost:[6,10,14],d:'Strips 5 armor from every threat, per level.'},
+  {id:'dip',name:'BUY THE DIP',max:1,cost:[10],d:'Build and upgrade costs drop a further 30% while the cycle is in a downcycle.'},
+  {id:'powder',name:'DRY POWDER',max:1,cost:[9],d:'Sell refund rises from 60% to 90%, so rotating positions stops being a loss.'}
+];
+
+var WAVES=[
+  [['panic',8,0.85,0]],
+  [['panic',12,0.68,0]],
+  [['glut',16,0.34,0]],
+  [['panic',10,0.6,0],['glut',14,0.3,4]],
+  [['export',6,1.4,0],['panic',10,0.5,3]],
+  [['short',10,0.6,0],['panic',8,0.6,2]],
+  [['export',8,1.1,0],['glut',18,0.28,3]],
+  [['dark',8,0.9,0],['panic',10,0.5,2]],
+  [['cascade',6,1.2,0],['short',8,0.5,4]],
+  [['winter',1,1,0],['panic',14,0.5,3]],
+  [['hike',10,0.8,0],['glut',16,0.3,4]],
+  [['freeze',4,2.0,0],['glut',20,0.25,2]],
+  [['export',10,0.9,0],['short',12,0.4,5]],
+  [['dark',12,0.7,0],['hike',8,0.9,3]],
+  [['winter',1,1,0],['freeze',3,2,4],['glut',20,0.25,6]],
+  [['cascade',10,0.8,0],['hike',10,0.7,3]],
+  [['short',18,0.35,0],['dark',10,0.7,4]],
+  [['freeze',6,1.6,0],['export',12,0.7,3]],
+  [['hike',14,0.6,0],['cascade',8,1.0,4]],
+  [['winter',2,3,0],['dark',14,0.5,4],['short',14,0.35,8]]
+];
+var POOL=['panic','glut','export','short','dark','freeze','hike','cascade'];
+
+/* ============================================================
+   4. GAME STATE
+   ============================================================ */
+function freshState(){ return {
+  cash:400, conv:0, nav:100, wave:0, running:false, over:false, won:false,
+  paused:true, speed:1, started:false,
+  towers:[], enemies:[], shots:[], parts:[], floats:[], beams:[],
+  queue:[], spawnT:0, breakT:0, inWave:false,
+  cyclePhase:-1.3, cycleVal:0,
+  armed:null, ghost:null, sel:null, hoverCell:null,
+  th:{moore:0,ai:0,horizon:0,chips:0,diverse:0,dip:0,powder:0},
+  seen:{}, soldThisWave:false, time:0, dps:0, peakDps:0, shake:0, alertHold:false,
+  ab:{halt:0,tiger:0}, haltT:0, tiger:null, holding:false,
+  superT:0, superFx:0, superOn:false, superCount:0, overlayHold:false,
+  coachOn:false, coachStep:0, firstUpgradeDone:false, bookOpened:false, speedTouched:false,
+  pausedForMenu:false, userPaused:false, step4Held:false,
+  speedTipT:0, speedTipDone:false, rotateHold:false
+}; }
+var G=freshState();
+function cycleAt(p){return Math.sin(p)*0.85+Math.sin(p*2.37+1.1)*0.15;}
+function phaseName(v){return v>0.18?'UPCYCLE':(v<-0.18?'DOWNCYCLE':'MID-CYCLE');}
+function costMul(){
+  var m=1+0.30*G.cycleVal;
+  if(G.th.dip&&G.cycleVal<0)m*=0.70;
+  return m;
+}
+function bountyMul(){return 1+0.55*G.cycleVal;}
+function compRate(){return G.th.horizon===0?0.035:(G.th.horizon===1?0.062:0.085);}
+function compCap(){return G.th.horizon===0?0.70:(G.th.horizon===1?1.05:1.45);}
+function divMul(){return G.th.horizon===0?1:(G.th.horizon===1?1.7:2.4);}
+function buyCost(key){return Math.round(TOWERS[key].cost*costMul());}
+function upCost(t){return Math.round(TOWERS[t.key].cost*0.8*Math.pow(1.62,t.level)*costMul());}
+function sellValue(t){return Math.round(t.invested*(G.th.powder?0.9:0.6));}
+
+/* ---- tower live stats ---- */
+function stats(t){
+  var D=TOWERS[t.key], lv=t.level, b=t.branch;
+  var dmg=(D.dmg||0)*Math.pow(1.45,lv);
+  var rate=(D.rate||0)*Math.pow(1.12,lv);
+  var range=D.range*CELL*Math.pow(1.05,lv);
+  var pen=0, splash=D.splash?D.splash*CELL:0, crit=t.critAura||0, chain=0, shots=1;
+  var slow=D.slow||0, slowT=D.slowT||0, bigBonus=0;
+
+  if(t.key==='analog'){ if(b==='A'){slow=0.55;slowT=2.2;} if(b==='B'){range*=1.35;} }
+  if(t.key==='memory'){
+    var sw=D.cyclic;
+    if(b==='A'){ dmg*=1.25; sw=0; dmg*=(1+0.65*Math.max(0,G.cycleVal)); }
+    else if(b==='B'){ rate*=1.8; sw=0.95; }
+    if(sw)dmg*=(1+sw*G.cycleVal);
+  }
+  if(t.key==='fabless'){ if(b==='A')chain=2; if(b==='B'){crit+=0.30;bigBonus=0.60;} }
+  if(t.key==='foundry'){ if(b==='A'){dmg*=1.45;pen+=18;} if(b==='B'){splash*=1.7;range*=1.25;} }
+  if(t.key==='litho'){ if(b==='A'){dmg*=1.55;pen+=999;} if(b==='B'){shots=2;rate*=1.45;} }
+
+  dmg*=1+Math.min(t.held*compRate(),compCap());
+  dmg*=1+0.08*G.th.moore;
+  if(t.key==='fabless'||t.key==='foundry')rate*=1+0.12*G.th.ai;
+  rate*=t.buffRate; range*=t.buffRange; dmg*=t.buffDmg; rate*=t.suppress;
+  return {dmg:dmg,rate:rate,range:range,pen:pen,splash:splash,crit:clamp(crit,0,0.85),
+          chain:chain,shots:shots,slow:slow,slowT:slowT,big:bigBonus};
+}
+function supportRadius(t){
+  var D=TOWERS[t.key], r=D.range*CELL*Math.pow(1.06,t.level);
+  if(t.key==='wfe'&&t.branch==='B')r*=1.55;
+  if(t.key==='eda'&&t.branch==='B')r*=1.45;
+  return r;
+}
+
+/* ============================================================
+   5. WAVE CONSTRUCTION
+   ============================================================ */
+function waveHpMul(w){return 1+0.18*(w-1)+0.024*(w-1)*(w-1);}
+/* One Analog deals ~47 damage in the window a threat spends inside its range,
+   against 62 health - so a lone tower cannot clear even one Retail Panic.
+   Wider spacing alone does not fix that; the opening waves are eased too. */
+/* 0.40 is the edge: at 0.42 wave 2 leaks 5 of 7. The last threat dies with
+   almost no route left, which is the intent. */
+function coachEase(){return (G.coachOn&&G.wave<=2)?0.40:1;}
+function waveSpdMul(w){return 1+0.012*(w-1);}
+function waveComp(w){
+  if(w<1)return WAVES[0];
+  if(w<=WAVES.length)return WAVES[w-1];
+  var over=w-WAVES.length, out=[], n=3+Math.min(3,Math.floor(over/4));
+  for(var i=0;i<n;i++){
+    var t=POOL[(w*7+i*5)%POOL.length];
+    out.push([t,Math.round((6+over*1.6)*(t==='glut'?2.2:1)),clamp(1.1-over*0.03,0.24,1.2),i*3.5]);
+  }
+  if(over%3===0)out.push(['winter',1+Math.floor(over/6),3,1]);
+  return out;
+}
+function buildQueue(w){
+  var comp=waveComp(w), q=[], extra=G.cycleVal<-0.18?1.25:1;
+  var teaching=G.coachOn&&w<=2;
+  for(var i=0;i<comp.length;i++){
+    var c=comp[i], type=c[0], count=Math.round(c[1]*(ENEMIES[type].boss?1:extra)), gap=c[2], delay=c[3]||0;
+    /* Absolute spacing, not a multiplier: wave 1 and wave 2 ship different base
+       gaps, and the binding constraint is arrival rate against one tower's
+       service rate. Swept on the real game with a single Analog on the
+       suggested pad - 2.4s clears both waves; 2.2s leaks on wave 2. */
+    if(teaching){ count=Math.max(3,Math.round(count*0.6)); gap=2.4; }
+    for(var k=0;k<count;k++)q.push({t:type,at:delay+k*gap});
+  }
+  q.sort(function(a,b){return a.at-b.at;});
+  return q;
+}
+function startWave(){
+  if(G.inWave||G.over)return;
+  var bonus=rushBonus();
+  if(bonus>0&&G.wave>0){ G.cash+=bonus; addFloat(CORE.x-90,CORE.y-40,'FRONT-RUN +'+money(bonus),hex('#f2c14e'),13); }
+  G.wave++;
+  G.queue=buildQueue(G.wave);
+  G.cash+=70*G.th.chips;
+  G.spawnT=0; G.inWave=true; G.breakT=0; G.soldThisWave=false; G.paused=false; G.userPaused=false;
+  var comp=waveComp(G.wave);
+  for(var i=0;i<comp.length;i++)announce(comp[i][0]);
+  syncUI();
+}
+function endWave(){
+  G.inWave=false; G.breakT=15;
+  var div=0;
+  for(var i=0;i<G.towers.length;i++){
+    var t=G.towers[i];
+    t.held++;
+    var d=(5+2.2*t.held)*(1+t.level*0.35)*divMul();
+    if(t.key==='analog'&&t.branch==='B')d*=2;
+    div+=d;
+  }
+  div=Math.round(div);
+  G.cash+=div;
+  var c=3+(G.soldThisWave?0:1)+(waveComp(G.wave).some(function(x){return ENEMIES[x[0]].boss;})?5:0);
+  G.conv+=c;
+  if(div>0)addFloat(CORE.x-70,CORE.y-56,'DIVIDENDS +'+money(div),hex('#f2c14e'),13);
+  addFloat(CORE.x-70,CORE.y-76,'CONVICTION +'+c,hex('#8fd94a'),13);
+  if(G.wave>=30&&!G.won){
+    G.won=true;
+    G.paused=true;G.userPaused=false;G.overlayHold=true;   /* hold the floor behind it */
+    G.sel=null;G.armed=null;G.ghost=null;
+    hideTip();
+    var wbody='<div class="ov-rule"></div>'+
+      '<div class="ov-stats">'+
+        statRow('Waves held',G.wave)+
+        statRow('NAV intact',Math.round(G.nav)+'%')+
+        statRow('Positions',G.towers.length)+
+        statRow('Conviction',G.conv)+
+        statRow('Peak book DPS',fmt(G.peakDps))+
+      '</div>'+
+      'You held through a full turn of the cycle. The book survived the winter \u2014 keep going and see how deep the next downturn cuts.';
+    overlay('Thesis confirmed',wbody,'Keep playing','win');
+  }
+  syncUI();
+}
+
+/* ============================================================
+   6. ENTITIES
+   ============================================================ */
+/* Uniform grid over the floor. Without it every tower tests every threat each
+   update - 54k distance checks a frame at wave 110, which is what makes taps
+   feel dropped. */
+var EGRID=[], EGW=COLS, EGH=ROWS;
+for(var _g=0;_g<EGW*EGH;_g++)EGRID.push([]);
+function regrid(){
+  for(var i=0;i<EGRID.length;i++)EGRID[i].length=0;
+  for(var j=0;j<G.enemies.length;j++){
+    var e=G.enemies[j];
+    var gx=(e.x/CELL)|0, gy=(e.y/CELL)|0;
+    if(gx<0)gx=0; else if(gx>=EGW)gx=EGW-1;
+    if(gy<0)gy=0; else if(gy>=EGH)gy=EGH-1;
+    EGRID[gy*EGW+gx].push(e);
+  }
+}
+function pickTarget(tx,ty,rng){
+  var best=null,bestD=-1;
+  var c0=((tx-rng)/CELL)|0, c1=((tx+rng)/CELL)|0, r0=((ty-rng)/CELL)|0, r1=((ty+rng)/CELL)|0;
+  if(c0<0)c0=0; if(r0<0)r0=0; if(c1>=EGW)c1=EGW-1; if(r1>=EGH)r1=EGH-1;
+  for(var gy=r0;gy<=r1;gy++){
+    var row=gy*EGW;
+    for(var gx=c0;gx<=c1;gx++){
+      var b=EGRID[row+gx];
+      for(var i=0;i<b.length;i++){
+        var e=b[i];
+        if(e.dead||!e.revealed||e.dist<=bestD)continue;
+        var dx=e.x-tx, dy=e.y-ty;
+        if(dx*dx+dy*dy>rng*rng)continue;
+        bestD=e.dist;best=e;
+      }
+    }
+  }
+  return best;
+}
+function revealNear(tx,ty,r,mark){
+  var c0=((tx-r)/CELL)|0, c1=((tx+r)/CELL)|0, r0=((ty-r)/CELL)|0, r1=((ty+r)/CELL)|0;
+  if(c0<0)c0=0; if(r0<0)r0=0; if(c1>=EGW)c1=EGW-1; if(r1>=EGH)r1=EGH-1;
+  var rr=r*r;
+  for(var gy=r0;gy<=r1;gy++){
+    var row=gy*EGW;
+    for(var gx=c0;gx<=c1;gx++){
+      var b=EGRID[row+gx];
+      for(var i=0;i<b.length;i++){
+        var e=b[i], dx=e.x-tx, dy=e.y-ty;
+        if(dx*dx+dy*dy<=rr){e.revealed=true;if(mark)e.marked=true;}
+      }
+    }
+  }
+}
+function nearEnemies(x,y,r,fn){
+  var c0=((x-r)/CELL)|0, c1=((x+r)/CELL)|0, r0=((y-r)/CELL)|0, r1=((y+r)/CELL)|0;
+  if(c0<0)c0=0; if(r0<0)r0=0; if(c1>=EGW)c1=EGW-1; if(r1>=EGH)r1=EGH-1;
+  for(var gy=r0;gy<=r1;gy++){
+    var row=gy*EGW;
+    for(var gx=c0;gx<=c1;gx++){
+      var b=EGRID[row+gx];
+      for(var i=0;i<b.length;i++)fn(b[i]);
+    }
+  }
+}
+
+/* Tower-to-tower auras only change when the book changes, so they are cached
+   rather than recomputed every frame. */
+var aurasDirty=true;
+function markAuras(){ aurasDirty=true; }
+function recomputeAuras(){
+  var i,j;
+  for(i=0;i<G.towers.length;i++){
+    var t=G.towers[i];
+    t.buffRate=1;t.buffRange=1;t.buffDmg=1;t.critAura=0;
+  }
+  for(i=0;i<G.towers.length;i++){
+    var a=G.towers[i];
+    if(a.key==='wfe'){
+      var r=supportRadius(a), rr=a.branch==='A'?1.60:1.30, rd=a.branch==='B'?1.20:1.0;
+      for(j=0;j<G.towers.length;j++){var o=G.towers[j];
+        if(o===a||TOWERS[o.key].support)continue;
+        if(Math.hypot(o.x-a.x,o.y-a.y)<=r){o.buffRate*=rr;o.buffRange*=1.08;o.buffDmg*=rd;}}
+    }else if(a.key==='eda'){
+      var re=supportRadius(a), cr=a.branch==='A'?0.42:0.20;
+      for(j=0;j<G.towers.length;j++){var o2=G.towers[j];
+        if(o2===a||TOWERS[o2.key].support)continue;
+        if(Math.hypot(o2.x-a.x,o2.y-a.y)<=re)o2.critAura+=cr;}
+    }
+  }
+  aurasDirty=false;
+}
+
+function spawn(type){
+  var D=ENEMIES[type], hm=waveHpMul(G.wave)*coachEase();
+  var hp=D.hp*hm;
+  G.enemies.push({
+    def:D,type:type,hp:hp,max:hp,dist:0,x:PATH[0].x,y:PATH[0].y,a:0,
+    speed:D.speed*waveSpdMul(G.wave)*SPEED_NORM,
+    shield:(D.shield||0)*hm, maxShield:(D.shield||0)*hm, shieldT:0,
+    slowT:0,slowAmt:0,revealed:!D.stealth,marked:false,hitT:9,gen:0,rot:Math.random()*6.28
+  });
+}
+/* Both abilities live at the same time is a real tactical commitment - you have
+   to sit on two full charges to do it - so it gets a moment. */
+function confetti(){
+  if(A11Y.motion)return;   /* celebration without the shrapnel */
+  var cols=[hex('#4fd3e8'),hex('#f2c14e'),hex('#e0479e'),hex('#8fd94a'),hex('#a97bf0'),hex('#5fe08a')];
+  for(var i=0;i<150;i++){
+    var a=Math.random()*6.283, sp=(0.5+Math.random()*2.4)*3;
+    G.parts.push({x:W*0.5+(Math.random()-0.5)*W*0.62,
+                  y:H*0.44+(Math.random()-0.5)*H*0.34,
+                  vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-1.4,
+                  life:0.9+Math.random()*1.0, max:1.9,
+                  c:cols[(Math.random()*cols.length)|0], s:2+Math.random()*4.5});
+  }
+}
+function addFloat(x,y,txt,col,size){
+  /* the same message twice in a row just renders as mush */
+  for(var i=0;i<G.floats.length;i++){
+    if(G.floats[i].t===txt&&G.floats[i].life>0.2)return;
+  }
+  G.floats.push({x:x,y:y,t:txt,c:col,s:(size||11)*(PORTRAIT?1.25:1),life:1.15,vy:-26});
+}
+function burst(x,y,col,n,pow){
+  for(var i=0;i<n;i++){
+    var a=Math.random()*6.283, sp=(0.3+Math.random())*pow;
+    G.parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.35+Math.random()*0.45,max:0.8,c:col,s:1.6+Math.random()*2.6});
+  }
+}
+function armorOf(e){return Math.max(0,(e.def.armor||0)-5*G.th.diverse);}
+
+function damage(e,dmg,pen,src){
+  if(e.hp<=0)return;
+  if(e.marked)dmg*=1.20;
+  var ar=Math.max(0,armorOf(e)-(pen||0));
+  var d=Math.max(dmg*0.18,dmg-ar);
+  if(e.shield>0){var s=Math.min(e.shield,d);e.shield-=s;d-=s;e.shieldT=0;}
+  e.hp-=d; e.hitT=0;
+  if(e.hp<=0)kill(e,src);
+}
+function kill(e,src){
+  e.hp=0;e.dead=true;
+  var col=hex(e.def.color);
+  burst(e.x,e.y,col,e.def.boss?34:10,e.def.boss?4:2.2);
+  var b=Math.round(e.def.bounty*bountyMul()*(1+0.05*(G.wave-1))*(e.gen?0.4:1));
+  if(G.superT>0)b*=2;
+  G.cash+=b;
+  addFloat(e.x,e.y-e.def.size-6,'+'+money(b),hex('#f2c14e'),e.def.boss?15:10);
+  if(e.def.boss)G.shake=Math.max(G.shake,10);
+  G.ab.halt=Math.min(ABIL.halt.need,G.ab.halt+(e.def.boss?3:0.3));
+  G.ab.tiger=Math.min(ABIL.tiger.need,G.ab.tiger+(e.def.boss?3:0.3));
+  if(e.def.split&&!e.gen){
+    for(var i=0;i<e.def.split;i++){
+      var hp=e.max*0.42;
+      G.enemies.push({def:e.def,type:e.type,hp:hp,max:hp,dist:Math.max(0,e.dist-14-i*20),x:e.x,y:e.y,a:e.a,
+        speed:e.speed*1.35,shield:0,maxShield:0,shieldT:0,slowT:0,slowAmt:0,revealed:true,marked:false,hitT:9,gen:1,rot:Math.random()*6.28});
+    }
+  }
+}
+
+/* ============================================================
+   7. UPDATE
+   ============================================================ */
+function fireAbility(id){
+  if(!G.started||G.over||G.alertHold)return false;
+  if(G.ab[id]<ABIL[id].need)return false;
+  G.ab[id]=0;
+  if(id==='halt'){
+    G.haltT=ABIL.halt.dur;
+    G.shake=Math.max(G.shake,7);
+    addFloat(W/2,H*0.34,'TRADING HALT',hex(ABIL.halt.color),PORTRAIT?17:15);
+    for(var i=0;i<G.enemies.length;i++)burst(G.enemies[i].x,G.enemies[i].y,hex(ABIL.halt.color),5,1.6);
+  }else{
+    G.tiger={dist:TOTAL-6,life:ABIL.tiger.dur,cd:0,x:0,y:0,aim:0,pulse:0};
+    var p0=pathAt(G.tiger.dist);G.tiger.x=p0.x;G.tiger.y=p0.y;
+    addFloat(p0.x,p0.y-30,'TIGER TEAM DEPLOYED',hex(ABIL.tiger.color),PORTRAIT?15:13);
+    burst(p0.x,p0.y,hex(ABIL.tiger.color),22,3);
+  }
+  syncUI();
+  return true;
+}
+
+function update(dt){
+  G.time+=dt;
+
+  if(G.haltT>0)G.haltT-=dt;
+
+  /* supercycle: the overlap window, latched so it fires once per pairing */
+  var bothLive=G.haltT>0&&!!G.tiger;
+  if(bothLive&&!G.superOn){
+    G.superOn=true; G.superCount++;
+    G.superFx=2.0; G.shake=Math.max(G.shake,16);
+    G.conv+=2;
+    confetti();
+  }
+  if(!bothLive)G.superOn=false;
+  G.superT=bothLive?Math.min(G.haltT,G.tiger?G.tiger.life:0):0;
+  if(G.superFx>0)G.superFx=Math.max(0,G.superFx-dt);
+  G.cyclePhase+=dt*0.115;
+  G.cycleVal=cycleAt(G.cyclePhase);
+  if(A11Y.motion)G.shake=0;
+  if(G.shake>0)G.shake=Math.max(0,G.shake-dt*22);
+
+  /* auras */
+  var i,j,t,e;
+  if(aurasDirty)recomputeAuras();
+  regrid();
+  for(i=0;i<G.towers.length;i++)G.towers[i].suppress=1;
+  for(i=0;i<G.enemies.length;i++){e=G.enemies[i];
+    if(e.def.stealth)e.revealed=false;
+    e.marked=false;
+  }
+  for(i=0;i<G.towers.length;i++){
+    t=G.towers[i];
+    if(t.key!=='eda')continue;
+    revealNear(t.x,t.y,supportRadius(t),t.branch==='B');
+  }
+  for(i=0;i<G.enemies.length;i++){e=G.enemies[i];
+    if(!e.def.aura)continue;
+    for(j=0;j<G.towers.length;j++){t=G.towers[j];
+      if(Math.hypot(t.x-e.x,t.y-e.y)<=CELL*3.1)t.suppress=Math.min(t.suppress,0.65);}
+  }
+
+  /* spawning */
+  if(G.inWave){
+    G.spawnT+=dt;
+    /* hard ceiling on live threats: at wave 100+ the queue can outrun any book,
+       and an unbounded floor is how a phone runs out of memory */
+    while(G.queue.length&&G.queue[0].at<=G.spawnT&&G.enemies.length<900){spawn(G.queue.shift().t);}
+    if(!G.queue.length&&!G.enemies.length)endWave();
+  }else if(G.breakT>0&&G.started&&!G.over){
+    G.breakT-=dt;
+    if(G.breakT<=0)startWave();
+  }
+
+  /* enemies */
+  for(i=G.enemies.length-1;i>=0;i--){
+    e=G.enemies[i];
+    if(e.dead){G.enemies.splice(i,1);continue;}
+    e.hitT+=dt;e.shieldT+=dt;e.rot+=dt*0.8;
+    if(e.slowT>0){e.slowT-=dt;if(e.slowT<=0)e.slowAmt=0;}
+    if(e.def.regen&&e.hp<e.max)e.hp=Math.min(e.max,e.hp+e.max*e.def.regen*dt);
+    if(e.maxShield&&e.shieldT>3&&e.shield<e.maxShield)e.shield=Math.min(e.maxShield,e.shield+e.maxShield*0.40*dt);
+    var sp=e.speed*(1-Math.max(e.slowAmt,G.haltT>0?0.70:0));
+    e.dist+=sp*dt;
+    var p=pathAt(e.dist); e.x=p.x;e.y=p.y;e.a=p.a;
+    if(e.dist>=TOTAL){
+      G.nav-=e.def.leak*(e.gen?0.4:1);
+      G.shake=Math.max(G.shake,e.def.boss?14:5);
+      burst(e.x,e.y,hex('#ef5b5b'),14,3);
+      addFloat(CORE.x-30,CORE.y-30,'-'+(e.def.leak*(e.gen?0.4:1)).toFixed(1)+'% NAV',hex('#ef5b5b'),13);
+      G.enemies.splice(i,1);
+      if(G.nav<=0){G.nav=0;lose();}
+    }
+  }
+
+  /* towers fire */
+  var totalDps=0;
+  for(i=0;i<G.towers.length;i++){
+    t=G.towers[i];
+    if(!TOWERS[t.key].support){
+      var st=stats(t);
+      totalDps+=st.dmg*st.rate*st.shots*(1+st.crit*1.2);
+      t.cd-=dt*st.rate;
+      var target=pickTarget(t.x,t.y,st.range);
+      if(target){
+        t.aim=Math.atan2(target.y-t.y,target.x-t.x);
+        if(t.cd<=0){
+          t.cd=1;
+          fire(t,st,target);
+        }
+      }
+      if(t.cd<0)t.cd=0;
+    }
+    t.pulse=(t.pulse||0)+dt;
+  }
+  G.dps=totalDps;
+  if(totalDps>G.peakDps)G.peakDps=totalDps;
+
+  /* tiger team: walks the route from the core outward, armour-ignoring rapid fire */
+  if(G.tiger){
+    var tg=G.tiger;
+    tg.life-=dt; tg.pulse+=dt;
+    tg.dist-=tigerSpeed()*dt;
+    if(tg.life<=0||tg.dist<=0){
+      burst(tg.x,tg.y,hex(ABIL.tiger.color),16,2.4);
+      G.tiger=null;
+    }else{
+      var tp=pathAt(tg.dist); tg.x=tp.x; tg.y=tp.y;
+      tg.cd-=dt;
+      var tRange=CELL*2.3, tgt=null, tBest=1e9;
+      for(j=0;j<G.enemies.length;j++){
+        e=G.enemies[j];
+        if(e.dead)continue;
+        var dd=Math.hypot(e.x-tg.x,e.y-tg.y);
+        if(dd<=tRange&&dd<tBest){tBest=dd;tgt=e;}
+      }
+      if(tgt){
+        tg.aim=Math.atan2(tgt.y-tg.y,tgt.x-tg.x);
+        if(tg.cd<=0){
+          tg.cd=1/6;
+          G.beams.push({x1:tg.x,y1:tg.y,x2:tgt.x,y2:tgt.y,life:0.13,c:hex(ABIL.tiger.color)});
+          damage(tgt,55*waveHpMul(G.wave),999,null);
+          burst(tgt.x,tgt.y,hex(ABIL.tiger.color),4,1.8);
+        }
+      }
+    }
+  }
+
+  /* projectiles */
+  for(i=G.shots.length-1;i>=0;i--){
+    var s=G.shots[i];
+    var tx=s.target&&!s.target.dead?s.target.x:s.lx, ty=s.target&&!s.target.dead?s.target.y:s.ly;
+    s.lx=tx;s.ly=ty;
+    var dx=tx-s.x,dy=ty-s.y,d=Math.hypot(dx,dy);
+    var step=s.speed*dt;
+    s.a=Math.atan2(dy,dx);
+    if(d<=step||d<3){
+      impact(s,tx,ty);
+      G.shots.splice(i,1);
+    }else{
+      s.x+=dx/d*step;s.y+=dy/d*step;
+      s.life-=dt;
+      if(s.life<=0)G.shots.splice(i,1);
+    }
+  }
+  for(i=G.beams.length-1;i>=0;i--){G.beams[i].life-=dt;if(G.beams[i].life<=0)G.beams.splice(i,1);}
+  for(i=G.parts.length-1;i>=0;i--){
+    var pt=G.parts[i];pt.x+=pt.vx*60*dt;pt.y+=pt.vy*60*dt;pt.vx*=0.94;pt.vy*=0.94;pt.life-=dt;
+    if(pt.life<=0)G.parts.splice(i,1);
+  }
+  for(i=G.floats.length-1;i>=0;i--){
+    var f=G.floats[i];f.y+=f.vy*dt;f.vy*=0.93;f.life-=dt;
+    if(f.life<=0)G.floats.splice(i,1);
+  }
+}
+
+function fire(t,st,target){
+  var D=TOWERS[t.key], col=hex(D.color);
+  var isCrit=Math.random()<st.crit;
+  var dmg=st.dmg*(isCrit?2.2:1);
+  if(st.big&&target.hp>target.max*0.5)dmg*=1+st.big;
+  if(D.beam){
+    for(var k=0;k<st.shots;k++){
+      G.beams.push({x1:t.x,y1:t.y,x2:target.x,y2:target.y,life:0.16,c:col});
+      hitEnemy(t,st,target,dmg,isCrit);
+    }
+    burst(target.x,target.y,col,6,2.2);
+  }else{
+    for(var m=0;m<st.shots;m++){
+      G.shots.push({x:t.x,y:t.y,lx:target.x,ly:target.y,target:target,speed:420+st.rate*40,
+        dmg:dmg,crit:isCrit,c:col,src:t,st:st,life:2.2,a:0,size:(t.key==='foundry'?5:3.4)*MARK});
+    }
+  }
+}
+function impact(s,x,y){
+  var st=s.st;
+  burst(x,y,s.c,st.splash?9:4,st.splash?2.6:1.4);
+  if(st.splash){
+    nearEnemies(x,y,st.splash,function(e){
+      if(e.dead)return;
+      if(Math.hypot(e.x-x,e.y-y)<=st.splash)damage(e,s.dmg*(e===s.target?1:0.62),st.pen,s.src);
+    });
+    if(s.target&&!s.target.dead&&Math.hypot(s.target.x-x,s.target.y-y)>st.splash)damage(s.target,s.dmg,st.pen,s.src);
+  }else if(s.target&&!s.target.dead){
+    hitEnemy(s.src,st,s.target,s.dmg,s.crit);
+  }
+}
+function hitEnemy(t,st,e,dmg,crit){
+  damage(e,dmg,st.pen,t);
+  if(st.slow&&!e.def.slowImmune&&!e.dead){e.slowAmt=Math.max(e.slowAmt,st.slow);e.slowT=st.slowT;}
+  if(crit)addFloat(e.x+6,e.y-14,'CRIT',hex('#f2c14e'),10);
+  if(st.chain){
+    var hits=0;
+    for(var i=0;i<G.enemies.length&&hits<st.chain;i++){
+      var o=G.enemies[i];
+      if(o===e||o.dead||!o.revealed)continue;
+      if(Math.hypot(o.x-e.x,o.y-e.y)<=CELL*2.2){
+        G.beams.push({x1:e.x,y1:e.y,x2:o.x,y2:o.y,life:0.12,c:hex('#9ff5c0')});
+        damage(o,dmg*0.55,st.pen,t);
+        hits++;
+      }
+    }
+  }
+}
+
+/* ============================================================
+   8. RENDER
+   ============================================================ */
+(function pickSuggestion(){
+  var best=null;
+  for(var gx=0;gx<COLS;gx++)for(var gy=0;gy<ROWS;gy++){
+    if(blocked[gx][gy])continue;
+    var pr=pathProbe(gx*CELL+CELL/2,gy*CELL+CELL/2);
+    if(pr.d>CELL*1.35)continue;
+    if(pr.s<TOTAL*0.06||pr.s>TOTAL*0.34)continue;
+    if(!best||pr.s<best.s)best={gx:gx,gy:gy,s:pr.s};
+  }
+  SUGGEST=best;
+})();
+
+var C={
+  bg:hex('#080b14'), grid:hex('#1a2438'), pad:hex('#111a2c'),
+  path:hex('#18233c'), pathEdge:hex('#26355a'), flow:hex('#2f4266'),
+  core:hex('#4fd3e8'), ink:hex('#dbe4f5'), dim:hex('#7e8ba6'), red:hex('#ef5b5b'),
+  phos:hex('#f2c14e'), euv:hex('#e0479e'), conv:hex('#8fd94a')
+};
+
+function render(){
+  var sx=(Math.random()-0.5)*G.shake, sy=(Math.random()-0.5)*G.shake;
+  gl.clearColor(0.031,0.043,0.078,1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  qc=0;setBlend('normal');
+
+  /* wafer grid */
+  var occ={};
+  for(var oi=0;oi<G.towers.length;oi++)occ[G.towers[oi].gx+','+G.towers[oi].gy]=1;
+  var tintPads=!!G.armed;
+  for(var gx2=0;gx2<COLS;gx2++)for(var gy2=0;gy2<ROWS;gy2++){
+    if(blocked[gx2][gy2])continue;
+    var cx=gx2*CELL+CELL/2+sx, cy=gy2*CELL+CELL/2+sy;
+    var padCol=withA(C.pad,0.55);
+    if(tintPads&&!occ[gx2+','+gy2])padCol=withA(C.conv,0.13);
+    quad(cx,cy,CELL*0.42,CELL*0.42,0,padCol,1,0.10,0);
+    line(cx-3,cy,cx+3,cy,1,withA(C.grid,0.85));
+    line(cx,cy-3,cx,cy+3,1,withA(C.grid,0.85));
+  }
+  /* route */
+  var k;
+  for(k=0;k<SEG.length;k++){
+    var s=SEG[k];
+    line(s.x+sx,s.y+sy,s.x+s.dx*s.len+sx,s.y+s.dy*s.len+sy,CELL*0.86,C.path,0.16);
+  }
+  for(k=1;k<PATH.length-1;k++)quad(PATH[k].x+sx,PATH[k].y+sy,CELL*0.43,CELL*0.43,0,C.path,1,0.18,0);
+  /* capital flow dashes */
+  setBlend('add');
+  var flow=(G.time*38)%26;
+  for(k=0;k<SEG.length;k++){
+    var sg=SEG[k];
+    for(var d=flow;d<sg.len;d+=26){
+      var px=sg.x+sg.dx*d+sx, py=sg.y+sg.dy*d+sy;
+      quad(px,py,5,1.1,Math.atan2(sg.dy,sg.dx),withA(C.flow,0.55),1,0.4,0);
+    }
+  }
+  setBlend('normal');
+
+  /* walkthrough: ring the opening pad so "an empty pad" has an obvious answer */
+  if(G.coachOn&&G.coachStep===1&&G.armed&&SUGGEST&&!occ[SUGGEST.gx+','+SUGGEST.gy]){
+    var sxp=SUGGEST.gx*CELL+CELL/2+sx, syp=SUGGEST.gy*CELL+CELL/2+sy;
+    setBlend('add');
+    for(var sr=0;sr<3;sr++){
+      var sph=((G.time*0.62)+sr/3)%1;
+      var srad=CELL*(1.62-1.05*sph);
+      quad(sxp,syp,srad,srad,0,withA(C.conv,0.8*Math.sin(sph*Math.PI)),3,0.018,0);
+    }
+    setBlend('normal');
+    quad(sxp,syp,CELL*0.42,CELL*0.42,0,withA(C.conv,0.20),1,0.12,0);
+    /* no label here - the placement preview already writes name, range and cost
+       on this exact cell, and two captions on one pad is the mush in the shot */
+  }
+
+  /* placement preview */
+  var prev=G.armed?(G.ghost||G.hoverCell):null;
+  if(prev){
+    var PD=TOWERS[G.armed];
+    var okp=canPlace(prev.gx,prev.gy), costp=buyCost(G.armed), afford=G.cash>=costp;
+    var pc=!okp?C.red:(!afford?C.phos:hex(PD.color));
+    var px2=prev.gx*CELL+CELL/2, py2=prev.gy*CELL+CELL/2, rng=PD.range*CELL;
+    setBlend('add');
+    quad(px2,py2,rng,rng,0,withA(pc,0.055),0,0,0);
+    setBlend('normal');
+    quad(px2,py2,rng,rng,0,withA(pc,0.38),3,0.006,0);
+    if(G.ghost)quad(px2,py2,rng+4,rng+4,0,withA(pc,0.16+0.14*Math.sin(G.time*6)),3,0.004,0);
+    quad(px2,py2,CELL*0.44,CELL*0.44,0,withA(pc,0.22),1,0.14,0);
+    quad(px2,py2,CELL*0.44,CELL*0.44,0,withA(pc,0.75),3,0.03,0);
+    quad(px2,py2,CELL*0.22,CELL*0.22,0,withA(pc,0.55),PD.shape,0.22,0);
+    var above=py2-CELL*0.72, below=py2+CELL*0.82;
+    if(above<16){above=py2+CELL*0.72;below=py2+CELL*1.4;}
+    textFit(PD.tag+'  '+PD.range.toFixed(1)+' CELLS',px2,above,HUD-2,withA(pc,0.95));
+    textFit(!okp?'BLOCKED':(!afford?('NEED '+money(costp)):(G.ghost?('TAP AGAIN  '+money(costp)):money(costp))),
+      px2,below,HUD,withA(pc,0.95));
+  }
+
+  /* core */
+  var navFrac=clamp(G.nav/100,0,1);
+  var cxp=CORE.x+sx, cyp=CORE.y+sy, crot=PORTRAIT?Math.PI/2:0;
+  setBlend('add');
+  quad(cxp,cyp,76,76,0,withA(C.core,0.14+0.05*Math.sin(G.time*2)),6,0,0);
+  setBlend('normal');
+  quad(cxp,cyp,26,34,crot,hex('#0e1728'),1,0.2,0);
+  quad(cxp,cyp,26,34,crot,withA(C.core,0.55),3,0.045,0);
+  for(k=0;k<4;k++){
+    if(PORTRAIT)line(cxp-18+k*12,cyp-27,cxp-18+k*12,cyp-35,2,withA(C.core,0.5));
+    else line(cxp-27,cyp-18+k*12,cxp-35,cyp-18+k*12,2,withA(C.core,0.5));
+  }
+  var nlx=PORTRAIT?cxp-62:cxp, nly=PORTRAIT?cyp-9:cyp-46;
+  text('NAV',nlx,nly,HUD-1,withA(C.dim,0.9),'center');
+  text(Math.round(G.nav)+'%',nlx,nly+HUD+3,HUD+1,navFrac<0.3?C.red:C.core,'center');
+
+  /* towers */
+  for(var i=0;i<G.towers.length;i++){
+    var t=G.towers[i], D=TOWERS[t.key], col=hex(D.color);
+    var tx=t.x+sx, ty=t.y+sy;
+    if(G.sel===t){
+      var st=stats(t);
+      setBlend('add');
+      quad(tx,ty,st.range,st.range,0,withA(col,0.05),0,0,0);
+      setBlend('normal');
+      quad(tx,ty,st.range,st.range,0,withA(col,0.32),3,0.005,0);
+    }
+    if(D.support){
+      var sr=supportRadius(t), pulse=0.10+0.05*Math.sin(G.time*2.2+i);
+      setBlend('add');
+      quad(tx,ty,sr,sr,0,withA(col,pulse*0.35),0,0,0);
+      setBlend('normal');
+      quad(tx,ty,sr,sr,0,withA(col,0.16),3,0.004,0);
+    }
+    /* pad */
+    quad(tx,ty,CELL*0.44,CELL*0.44,0,hex('#101a2e'),2,0,0);
+    quad(tx,ty,CELL*0.44,CELL*0.44,0,withA(col,0.17),3,0.03,0);
+    /* die */
+    quad(tx,ty,CELL*0.25*MARK,CELL*0.25*MARK,t.key==='memory'?G.time*0.4:0,withA(col,0.92),D.shape,D.shape===3?0.22:0.22,0);
+    /* barrel */
+    if(!D.support){
+      var bl=CELL*(D.beam?0.42:0.32);
+      line(tx,ty,tx+Math.cos(t.aim)*bl,ty+Math.sin(t.aim)*bl,D.beam?5:4,withA(col,0.95),0.3);
+      var fl=1-clamp(t.cd,0,1);
+      if(fl>0.82){setBlend('add');
+        quad(tx+Math.cos(t.aim)*bl,ty+Math.sin(t.aim)*bl,7,7,0,withA(col,(fl-0.82)*3),6,0,0);
+        setBlend('normal');}
+    }
+    /* upgrade affordance: a collapsing ring while it still needs teaching or a
+       permanent branch pick is pending, otherwise just a quiet pip */
+    var mark=ringState(t);
+    var coaching=G.coachOn&&G.coachStep===3&&mark==='rings';
+    if(mark==='rings'){
+      setBlend('add');
+      for(var rr=0;rr<3;rr++){
+        /* static concentric rings when motion is reduced - still an attractor,
+           just not a moving one */
+        var ph=A11Y.motion?(0.18+rr*0.28):(((G.time*0.62)+rr/3)%1);
+        var rad=CELL*(1.62-1.05*ph);
+        quad(tx,ty,rad,rad,0,withA(C.conv,(coaching?0.85:0.6)*Math.sin(ph*Math.PI)),3,0.018,0);
+      }
+      setBlend('normal');
+      if(coaching)textFit('TAP TO UPGRADE',tx,ty+CELL*0.78,HUD-2,withA(C.conv,0.95));
+    }else if(mark==='pip'){
+      quad(tx+CELL*0.30,ty-CELL*0.30,3.2,3.2,0.78,withA(C.conv,0.95),5,0,0);
+    }else if(mark==='branch'){
+      quad(tx+CELL*0.30,ty-CELL*0.30,3.2,3.2,0.78,withA(C.phos,0.55),3,0.30,0);
+    }
+
+    /* level pips */
+    for(var lv=0;lv<t.level;lv++)quad(tx-9+lv*6,ty+CELL*0.36,2,2,0.78,withA(C.phos,0.95),5,0,0);
+    if(t.branch)text(t.branch,tx+13,ty+CELL*0.36,9,withA(col,0.9),'center');
+    if(G.sel===t)text(D.tag,tx,ty-CELL*0.60,HUD-3,withA(col,0.95),'center');
+    if(t.suppress<1){setBlend('add');quad(tx,ty,20,20,0,withA(C.red,0.25),6,0,0);setBlend('normal');}
+  }
+
+  /* tiger team */
+  if(G.tiger){
+    var tg2=G.tiger, tc=hex(ABIL.tiger.color), tx2=tg2.x+sx, ty2=tg2.y+sy;
+    setBlend('add');
+    quad(tx2,ty2,52,52,0,withA(tc,0.20+0.07*Math.sin(tg2.pulse*7)),6,0,0);
+    setBlend('normal');
+    quad(tx2,ty2,CELL*2.3,CELL*2.3,0,withA(tc,0.16),3,0.004,0);
+    quad(tx2,ty2,15,15,tg2.pulse*1.6,withA(hex('#0b1120'),0.9),2,0,0);
+    quad(tx2,ty2,15,15,tg2.pulse*1.6,withA(tc,0.95),3,0.20,0);
+    quad(tx2,ty2,5,5,0,withA(tc,1),5,0,0);
+    line(tx2,ty2,tx2+Math.cos(tg2.aim)*20,ty2+Math.sin(tg2.aim)*20,4,withA(tc,0.9),0.3);
+    textFit('TIGER TEAM '+Math.ceil(tg2.life)+'s',tx2,ty2-30,HUD-2,withA(tc,0.95));
+  }
+
+  /* beams */
+  setBlend('add');
+  for(i=0;i<G.beams.length;i++){
+    var bm=G.beams[i], a=bm.life/0.16;
+    line(bm.x1+sx,bm.y1+sy,bm.x2+sx,bm.y2+sy,2+6*a,withA(bm.c,0.85*a),0.5);
+    line(bm.x1+sx,bm.y1+sy,bm.x2+sx,bm.y2+sy,1.5,withA([1,1,1,1],0.9*a),0.5);
+  }
+  setBlend('normal');
+
+  /* enemies */
+  for(i=0;i<G.enemies.length;i++){
+    var e=G.enemies[i], ED=e.def, ex=e.x+sx, ey=e.y+sy;
+    var ec=hex(ED.color), vis=e.revealed?1:0.22;
+    if(e.hitT<0.09)ec=[1,1,1,1];
+    var sz=ED.size*MARK;
+    if(ED.boss){setBlend('add');quad(ex,ey,sz*2.6,sz*2.6,0,withA(hex(ED.color),0.16),6,0,0);setBlend('normal');
+      quad(ex,ey,CELL*3.1,CELL*3.1,0,withA(hex(ED.color),0.10),3,0.004,0);}
+    if(e.slowAmt>0){setBlend('add');quad(ex,ey,sz*1.7,sz*1.7,0,withA(hex('#4fd3e8'),0.18),6,0,0);setBlend('normal');}
+    quad(ex,ey,sz+2,sz+2,e.rot*(ED.shape===2?0.4:1)+e.a,withA(hex('#050810'),0.7*vis),ED.shape,0.2,0);
+    quad(ex,ey,sz,sz,e.rot*(ED.shape===2?0.4:1)+e.a,withA(ec,vis),ED.shape,0.2,0);
+    if(ED.armor)quad(ex,ey,sz*0.52,sz*0.52,0,withA([0.05,0.06,0.1,1],vis),2,0,0);
+    if(e.shield>0)quad(ex,ey,sz*1.5,sz*1.5,0,withA(hex('#e879f9'),0.55*(e.shield/e.maxShield)*vis),3,0.06,0);
+    if(e.marked)quad(ex,ey,sz*1.9,sz*1.9,G.time*2,withA(hex('#8fd94a'),0.5),3,0.03,0);
+    if(!e.revealed)quad(ex,ey,sz*1.2,sz*1.2,G.time,withA(hex('#64748b'),0.35),3,0.05,0);
+    /* hp */
+    if(e.hp<e.max){
+      var bw=Math.max(14,sz*1.6), hy=ey-sz-7;
+      quad(ex,hy,bw,2.4,0,[0.04,0.05,0.09,0.9],1,0.2,0);
+      var f=clamp(e.hp/e.max,0,1);
+      quad(ex-bw+bw*f,hy,bw*f,2.4,0,f>0.5?hex('#5fe08a'):(f>0.22?hex('#f2c14e'):hex('#ef5b5b')),1,0.2,0);
+    }
+    if(ED.boss)text(ED.name,ex,ey-sz-18,10,withA(hex(ED.color),0.9),'center');
+  }
+
+  /* projectiles */
+  setBlend('add');
+  for(i=0;i<G.shots.length;i++){
+    var sh2=G.shots[i];
+    quad(sh2.x+sx,sh2.y+sy,sh2.size*3.4,sh2.size*3.4,0,withA(sh2.c,0.30),6,0,0);
+    quad(sh2.x+sx,sh2.y+sy,sh2.size*2.2,sh2.size*0.8,sh2.a,withA(sh2.c,0.85),1,0.5,0);
+    quad(sh2.x+sx,sh2.y+sy,sh2.size*0.7,sh2.size*0.7,0,[1,1,1,0.9],0,0,0);
+  }
+  for(i=0;i<G.parts.length;i++){
+    var p2=G.parts[i], al=clamp(p2.life/0.6,0,1);
+    quad(p2.x+sx,p2.y+sy,p2.s,p2.s,0,withA(p2.c,al*0.9),0,0,0);
+  }
+  setBlend('normal');
+
+  /* floaters */
+  for(i=0;i<G.floats.length;i++){
+    var fl2=G.floats[i], al2=clamp(fl2.life/0.6,0,1);
+    textFit(fl2.t,fl2.x+sx,fl2.y+sy,fl2.s,withA(fl2.c,al2));
+  }
+
+  /* supercycle banner */
+  if(G.superFx>0){
+    var sk=1-G.superFx/2.0;
+    var sal=Math.min(1,G.superFx/0.55);
+    var ssz=(PORTRAIT?32:38)*(0.72+0.28*Math.min(1,sk*5));
+    setBlend('add');
+    quad(W/2,H*0.44,W*0.6,66,0,withA(C.phos,0.13*sal),6,0,0);
+    setBlend('normal');
+    textFit('SUPERCYCLE',W/2,H*0.44,ssz,withA(C.phos,sal));
+    textFit('BOTH LIVE - DOUBLE BOUNTY',W/2,H*0.44+ssz*0.86,HUD-1,withA(C.conv,sal*0.95));
+  }
+
+  /* trading halt: an edge glow rather than a wash over the floor */
+  if(G.haltT>0){
+    var hw2=hex(ABIL.halt.color), hpa=0.30+0.16*Math.sin(G.time*9);
+    setBlend('add');
+    quad(W/2,7,W,7,0,withA(hw2,hpa),1,0.4,0);
+    quad(W/2,H-7,W,7,0,withA(hw2,hpa),1,0.4,0);
+    quad(7,H/2,7,H,0,withA(hw2,hpa),1,0.4,0);
+    quad(W-7,H/2,7,H,0,withA(hw2,hpa),1,0.4,0);
+    setBlend('normal');
+  }
+
+  flush();
+}
+
+/* ============================================================
+   9. PLACEMENT & INTERACTION
+   ============================================================ */
+function canPlace(gx,gy){
+  if(gx<0||gy<0||gx>=COLS||gy>=ROWS)return false;
+  if(blocked[gx][gy])return false;
+  for(var i=0;i<G.towers.length;i++)if(G.towers[i].gx===gx&&G.towers[i].gy===gy)return false;
+  return true;
+}
+function commitPlacement(gx,gy){
+  if(!G.armed)return;
+  var need=buyCost(G.armed);
+  if(!place(G.armed,gx,gy)){
+    addFloat(gx*CELL+CELL/2,gy*CELL+CELL/2,
+      canPlace(gx,gy)?('NEED '+money(need)):'BLOCKED',hex('#ef5b5b'),10);
+  }
+}
+function place(key,gx,gy){
+  var c=buyCost(key);
+  if(G.cash<c||!canPlace(gx,gy))return false;
+  G.cash-=c;
+  var t={key:key,gx:gx,gy:gy,x:gx*CELL+CELL/2,y:gy*CELL+CELL/2,level:0,branch:null,
+    cd:0,aim:-Math.PI/2,held:0,invested:c,buffRate:1,buffRange:1,buffDmg:1,critAura:0,suppress:1,pulse:0,
+    bornAt:nowMs()};
+  G.towers.push(t);
+  markAuras();
+  G.sel=null;G.armed=null;G.ghost=null;
+  lastPlaceAt=nowMs();
+  burst(t.x,t.y,hex(TOWERS[key].color),12,2);
+  syncUI();
+  return true;
+}
+function upgrade(t,branch){
+  var c=upCost(t);
+  if(G.cash<c)return;
+  if(t.level===1&&!t.branch&&!branch)return;
+  G.cash-=c;t.invested+=c;t.level++;G.firstUpgradeDone=true;
+  markAuras();
+  if(branch)t.branch=branch;
+  burst(t.x,t.y,hex('#f2c14e'),14,2.4);
+  addFloat(t.x,t.y-24,'UPGRADED',hex('#f2c14e'),11);
+  syncUI();
+}
+function sell(t){
+  var v=sellValue(t);
+  G.cash+=v;G.soldThisWave=true;
+  var idx=G.towers.indexOf(t);
+  if(idx>=0)G.towers.splice(idx,1);
+  markAuras();
+  burst(t.x,t.y,hex('#ef5b5b'),12,2);
+  addFloat(t.x,t.y-22,'+'+money(v),hex('#f2c14e'),12);
+  if(G.sel===t)G.sel=null;
+  syncUI();
+}
+function takeProfits(t){
+  if(t.held<1)return;
+  var v=Math.round((22*t.held)*(1+t.level*0.5)*(1+0.4*Math.max(0,G.cycleVal)));
+  G.cash+=v;t.held=0;G.soldThisWave=true;
+  addFloat(t.x,t.y-22,'REALIZED +'+money(v),hex('#f2c14e'),12);
+  syncUI();
+}
+
+/* Tapping bare floor used to do nothing at all. Point at the desk instead. */
+var deskPeekT=0;
+function hintBuild(c){
+  if(c.gx<0||c.gy<0||c.gx>=COLS||c.gy>=ROWS)return;
+  if(G.coachOn&&G.coachStep===1)return;   /* the step card already says this */
+  if(blocked[c.gx][c.gy]){
+    addFloat(c.gx*CELL+CELL/2,c.gy*CELL+CELL/2,'ROUTE - NO BUILD',hex('#ef5b5b'),10);
+    return;
+  }
+  addFloat(c.gx*CELL+CELL/2,c.gy*CELL+CELL/2,'PICK A POSITION BELOW',C.conv,10);
+  var d=document.getElementById('desk');
+  d.classList.remove('flash');
+  void d.offsetWidth;
+  d.classList.add('flash');
+  setTimeout(function(){d.classList.remove('flash');},1200);
+  /* nudge the rail so it is obvious there is more than one screenful */
+  if(d.scrollWidth>d.clientWidth+8&&d.scrollLeft<6&&nowMs()-deskPeekT>3000){
+    deskPeekT=nowMs();
+    try{
+      d.scrollTo({left:46,behavior:'smooth'});
+      setTimeout(function(){d.scrollTo({left:0,behavior:'smooth'});},520);
+    }catch(e){ d.scrollLeft=46; setTimeout(function(){d.scrollLeft=0;},520); }
+  }
+}
+
+function nowMs(){return (typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();}
+var lastPlaceAt=-1e9;
+var SETTLE=700;   /* ms a fresh tower is un-selectable for */
+
+function evtCell(ev){
+  var r=canvas.getBoundingClientRect();
+  var cx=(ev.clientX!==undefined?ev.clientX:ev.touches[0].clientX);
+  var cy=(ev.clientY!==undefined?ev.clientY:ev.touches[0].clientY);
+  var x=(cx-r.left)/r.width*W, y=(cy-r.top)/r.height*H;
+  return {gx:Math.floor(x/CELL),gy:Math.floor(y/CELL),x:x,y:y};
+}
+canvas.addEventListener('mousemove',function(ev){G.hoverCell=evtCell(ev);});
+
+function towerAt(c){
+  for(var i=0;i<G.towers.length;i++){
+    var t=G.towers[i];
+    if(Math.hypot(t.x-c.x,t.y-c.y)<CELL*0.6)return t;
+  }
+  return null;
+}
+function towerTipHTML(t){
+  var D=TOWERS[t.key], st=stats(t);
+  return '<div class="tt" style="color:'+D.color+'">'+D.tag+' &middot; '+D.name+'</div>'+
+    (TOWERS[t.key].support
+      ? '<div class="tr"><span>Aura radius</span><b>'+(supportRadius(t)/CELL).toFixed(1)+' cells</b></div>'
+      : '<div class="tr"><span>Effective DPS</span><b class="cy">'+fmt(st.dmg*st.rate*st.shots)+'</b></div>'+
+        '<div class="tr"><span>Range</span><b>'+(st.range/CELL).toFixed(1)+' cells</b></div>')+
+    '<div class="tr"><span>Tier</span><b>'+t.level+' / 4'+(t.branch?' &middot; '+t.branch:'')+'</b></div>'+
+    '<div class="tr"><span>Held</span><b class="up">'+t.held+'w &middot; +'+Math.round(Math.min(t.held*compRate(),compCap())*100)+'%</b></div>'+
+    '<div class="td">Tap to open upgrade, profits and sell.</div>';
+}
+(function bindBoardTip(){
+  var timer=null, px0=0, py0=0;
+  function clear(){ if(timer){clearTimeout(timer);timer=null;} }
+  canvas.addEventListener('pointerdown',function(ev){
+    if(G.armed)return;
+    clear(); px0=ev.clientX; py0=ev.clientY;
+    var c=evtCell(ev), t=towerAt(c);
+    if(!t)return;
+    timer=setTimeout(function(){ showTip(towerTipHTML(t),TOWERS[t.key].color,px0,py0); },320);
+  });
+  canvas.addEventListener('pointermove',function(ev){
+    if(timer&&Math.hypot(ev.clientX-px0,ev.clientY-py0)>12)clear();
+  });
+  canvas.addEventListener('pointerup',function(){ clear(); setTimeout(hideTip,60); });
+  canvas.addEventListener('pointercancel',function(){ clear(); hideTip(); });
+  canvas.addEventListener('pointerleave',function(){ clear(); hideTip(); });
+})();
+canvas.addEventListener('mouseleave',function(){G.hoverCell=null;});
+canvas.addEventListener('contextmenu',function(ev){ev.preventDefault();G.armed=null;G.ghost=null;syncUI();});
+canvas.addEventListener('click',function(ev){
+  if(tipWasJustShown()){hideTip();return;}
+  var c=evtCell(ev);
+  G.hoverCell=c;
+  if(G.armed){
+    if(!HOVER_OK&&(!G.ghost||G.ghost.gx!==c.gx||G.ghost.gy!==c.gy)){
+      G.ghost={gx:c.gx,gy:c.gy};
+      syncUI();
+      return;
+    }
+    commitPlacement(c.gx,c.gy);
+    return;
+  }
+  /* iOS emits a delayed second click for the same tap. Because a tower now
+     exists exactly where the finger is, that stray click would open its menu
+     the instant it was built. Ignore selection right after a placement. */
+  var tNow=nowMs();
+  if(tNow-lastPlaceAt<SETTLE){syncUI();return;}
+  var hit=null;
+  for(var i=0;i<G.towers.length;i++){var t=G.towers[i];
+    if(Math.hypot(t.x-c.x,t.y-c.y)<CELL*0.6&&tNow-(t.bornAt||0)>=SETTLE)hit=t;}
+  /* Tapping bare floor with a position menu open means "close this", not
+     "I want to build here" - the build hint made a dismissal look like a
+     misunderstood build attempt. */
+  var dismissing=!!G.sel&&!hit;
+  if(!hit&&!G.armed&&!dismissing)hintBuild(c);
+  G.sel=hit;
+  if(hit)setTab('position');
+  syncUI();
+});
+
+/* The decision tree is modal-ish: a tap on anything that is not one of its own
+   controls dismisses it. Canvas taps are excluded because the board handler has
+   already run and may have selected a different position. */
+document.addEventListener('click',function(ev){
+  if(!G.sel)return;
+  var n=ev.target;
+  if(n===canvas)return;
+  while(n){
+    if(n===popEl)return;
+    if(n.classList&&n.classList.contains('side'))return;
+    n=n.parentNode;
+  }
+  G.sel=null;syncUI();
+});
+
+document.addEventListener('keydown',function(ev){
+  var k=ev.key.toLowerCase();
+  if(k>='1'&&k<='7'){G.armed=TKEYS[parseInt(k,10)-1];G.ghost=null;G.sel=null;syncUI();}
+  else if(k==='escape'){G.armed=null;G.ghost=null;G.sel=null;syncUI();}
+  else if(k===' '){ev.preventDefault();if(!G.started)begin();else startWave();}
+  else if(k==='f'){cycleSpeed();}
+  else if(k==='p'){togglePause();}
+  else if(k==='q'){fireAbility('halt');}
+  else if(k==='w'){fireAbility('tiger');}
+  else if(k==='u'&&G.sel){var t=G.sel;if(t.level===1&&!t.branch)return;upgrade(t);}
+  else if(k==='x'&&G.sel){sell(G.sel);}
+});
+
+/* ============================================================
+   10. UI
+   ============================================================ */
+var elPane=document.getElementById('pane'), tab='thesis', lastPaneHtml=null;
+function setPane(html){
+  if(html===lastPaneHtml)return false;
+  var sc=elPane.scrollTop;
+  elPane.innerHTML=html;
+  elPane.scrollTop=sc;
+  lastPaneHtml=html;
+  return true;
+}
+var deskEl=document.getElementById('desk');
+TKEYS.forEach(function(key,idx){
+  var D=TOWERS[key];
+  var b=document.createElement('button');
+  b.className='pos';b.dataset.key=key;b.dataset.idx=String(idx);
+  b.innerHTML='<span class="swatch" style="background:'+D.color+'"></span>'+
+    '<span class="hk">'+(idx+1)+'</span>'+
+    tickHTML(D.tag,D.color)+'<div class="nm">'+D.name+'</div><div class="pr" data-price>$'+D.cost+'</div>'+
+    '<em class="cta">Tap</em>';
+  bindTip(b,function(){
+    var c=buyCost(key), st0={dmg:D.dmg||0,rate:D.rate||0};
+    return '<div class="tt" style="color:'+D.color+'">'+D.name+'</div>'+
+      '<div class="tr"><span>Cost now</span><b class="am">'+money(c)+'</b></div>'+
+      (D.support
+        ? '<div class="tr"><span>Aura</span><b>'+D.range.toFixed(1)+' cells</b></div>'
+        : '<div class="tr"><span>Base DPS</span><b>'+fmt(st0.dmg*st0.rate)+'</b></div>'+
+          '<div class="tr"><span>Range</span><b>'+D.range.toFixed(1)+' cells</b></div>')+
+      '<div class="td">'+D.blurb+'</div>';
+  },D.color);
+  b.addEventListener('click',function(){
+    if(b.classList.contains('locked'))return;
+    G.armed=(G.armed===key)?null:key;G.ghost=null;G.sel=null;syncUI();
+  });
+  deskEl.appendChild(b);
+});
+
+document.querySelectorAll('.tab').forEach(function(el){
+  el.addEventListener('click',function(){setTab(el.dataset.pane);});
+});
+var tabInd=document.getElementById('tab-ind');
+function placeTabIndicator(){
+  var act=null;
+  document.querySelectorAll('.tab').forEach(function(el){ if(el.classList.contains('on'))act=el; });
+  if(!act||!tabInd||act.offsetWidth===undefined)return;
+  tabInd.style.left=act.offsetLeft+'px';
+  tabInd.style.width=act.offsetWidth+'px';
+}
+function setTab(n){
+  tab=n;
+  document.querySelectorAll('.tab').forEach(function(el){el.classList.toggle('on',el.dataset.pane===n);});
+  placeTabIndicator();
+  syncUI();
+}
+
+function syncUI(){
+  document.getElementById('s-nav').textContent=Math.round(G.nav)+'%';
+  document.getElementById('s-nav').classList.toggle('hurt',G.nav<35);
+  document.getElementById('s-cash').textContent=money(G.cash);
+  document.getElementById('s-conv').textContent=G.conv;
+  document.getElementById('s-wave').textContent=G.wave;
+  document.getElementById('s-dps').textContent=fmt(G.dps);
+  document.getElementById('s-pos').textContent=G.towers.length;
+  document.querySelectorAll('.pos').forEach(function(el){
+    var key=el.dataset.key, c=buyCost(key);
+    el.querySelector('[data-price]').textContent=money(c);
+    var locked=G.coachOn&&G.coachStep===1&&(+el.dataset.idx)>2;
+    el.classList.toggle('locked',locked);
+    el.classList.toggle('armed',G.armed===key);
+    el.classList.toggle('broke',locked||G.cash<c);
+    /* attract only while the player has nothing on the floor, or during step 1 -
+       seven pulsing chips at all times would be noise */
+    /* One short word fits the chip at every text size, so every affordable
+       position can carry it rather than just the first. */
+    var wantsBuild=(G.coachOn&&G.coachStep===1)||(G.started&&!G.over&&G.towers.length===0);
+    el.classList.toggle('attract',wantsBuild&&!locked&&G.cash>=c&&!G.armed);
+  });
+  var cw=document.getElementById('c-wave');
+  cw.innerHTML=!G.started?'Open the book':(G.inWave?'Wave '+G.wave:'Wave '+(G.wave+1)+' <b>+$'+rushBonus()+'</b>');
+  cw.disabled=G.inWave||G.over;
+  /* dim only for a deliberate pause - the sheet has its own scrim and a
+     briefing freeze has its own treatment */
+  var shellEl=document.querySelector('.shell');
+  shellEl.classList.toggle('presplash',!G.started);
+  shellEl.classList.toggle('briefing',!!G.alertHold);
+  shellEl.classList.toggle('halted',G.started&&(!!G.over||!!G.overlayHold));
+  var spEl=document.getElementById('c-speed');
+  spEl.textContent=G.speed+'×';
+  /* the attractor is only ever shown alongside the card that explains it -
+     a control that turns green on its own reads as a bug */
+  var nudge=G.started&&!G.over&&!G.speedTouched&&G.speed<1&&G.speedTipT>0;
+  spEl.classList.toggle('act',nudge);
+  document.getElementById('c-pause').textContent=G.paused?'Resume':'Pause';
+  var av=actionsAvailable();
+  var menuEl=document.getElementById('c-menu');
+  menuEl.innerHTML=(sheetOpen?'Hide':'Book')+(av.book&&!sheetOpen?'<span class="cnt">'+av.book+'</span>':'');
+  menuEl.classList.toggle('act',av.book>0&&!sheetOpen);
+  menuEl.classList.toggle('idle',av.book===0&&!sheetOpen);
+  document.querySelectorAll('.tab').forEach(function(el){
+    var pane=el.dataset.pane;
+    /* the Position pane only ever acts on the selected position, so the dot has
+       to mean "this pane has a button", not "some tower somewhere is upgradable" */
+    var n=pane==='thesis'?av.thesis
+      :(pane==='position'?((G.sel&&G.sel.level<4&&G.cash>=upCost(G.sel))?1:0):0);
+    var dot=el.querySelector('.dot');
+    if(n>0&&!dot){ el.insertAdjacentHTML('beforeend','<span class="dot"></span>'); }
+    else if(!n&&dot){ dot.remove(); }
+  });
+  renderWire();
+  renderCoach();
+  /* Computed after renderCoach so it can see whether a step card is actually on
+     screen. A walkthrough hold keeps its spotlight; any other pause - deliberate
+     or otherwise - blacks the board out so Resume is the only thing left to read. */
+  var guided=G.coachOn&&!coachEl.hidden;
+  var dim=G.started&&G.paused&&!G.over&&!sheetOpen&&!G.alertHold&&(G.userPaused||!guided);
+  shellEl.classList.toggle('paused',dim);
+  syncAbilities();
+  syncStatusRail();
+  renderPop();
+  if(tab==='position')renderPosition();
+  else if(tab==='thesis')renderThesis();
+  else if(tab==='cycle')renderCycle();
+  else if(tab==='access')renderAccess();
+  else renderCodex();
+}
+
+function renderPosition(){
+  var t=G.sel;
+  if(!t){
+    var h0='';
+    if(G.armed){
+      var D2=TOWERS[G.armed], c2=buyCost(G.armed);
+      var head=G.ghost?'Confirm placement':(HOVER_OK?'Armed &middot; click a pad to build':'Armed &middot; tap a pad to preview');
+      h0='<h3 class="sec">'+head+'</h3>'+
+        tickHTML(D2.tag,D2.color)+
+        '<div style="font-size:14px;font-weight:700;letter-spacing:.06em;color:'+D2.color+'">'+D2.name+'</div>'+
+        '<p class="empty">'+D2.blurb+'</p>'+
+        '<div class="rowline"><span>Range</span><b class="cy">'+D2.range.toFixed(1)+' cells</b></div>'+
+        '<div class="rowline"><span>Cost now</span><b class="am">'+money(c2)+'</b></div>'+
+        '<div class="rowline"><span>List price</span><b>'+money(D2.cost)+'</b></div>';
+      if(G.ghost){
+        var okg=canPlace(G.ghost.gx,G.ghost.gy), afg=G.cash>=c2;
+        h0+='<button class="btn go" data-act="confirm" '+((!okg||!afg)?'disabled':'')+'>'+
+          (okg?(afg?'Build here':'Not enough cash'):'Pad blocked')+'<span class="p">'+money(c2)+'</span>'+
+          '<small>The ring on the board shows what this position will cover.</small></button>'+
+          '<button class="btn" data-act="cancelghost">Pick another pad</button>';
+      }
+      h0+='<div class="hr"></div>';
+    }
+    var html=h0+'<h3 class="sec">No position selected</h3>'+
+      '<p class="empty">Pick a position from the desk below the fab floor, then '+
+      (HOVER_OK?'click':'tap')+' an empty pad to place it. Click any placed position to manage it here.<br><br>'+
+      'Two clocks run at once. <b class="cy">Short term:</b> clears pay more in an upcycle, and positions cost less in a downcycle. <b class="cy">Long term:</b> every wave you hold a position it compounds damage and pays a bigger dividend &mdash; selling or realizing gains resets that to zero.</p>';
+    if(!setPane(html))return;
+    elPane.querySelectorAll('[data-act]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var a=b.dataset.act;
+        if(a==='confirm'){ if(G.ghost)commitPlacement(G.ghost.gx,G.ghost.gy); }
+        else if(a==='cancelghost'){ G.ghost=null; syncUI(); }
+      });
+    });
+    return;
+  }
+  var D=TOWERS[t.key], st=stats(t), sup=!!D.support;
+  var h='';
+  h+=tickHTML(D.tag,D.color);
+  h+='<div style="font-size:14px;font-weight:700;letter-spacing:.06em;color:'+D.color+'">'+D.name+'</div>';
+  h+='<div class="rowline"><span>Tier</span><b>'+t.level+' / 4'+(t.branch?' · path '+t.branch:'')+'</b></div>';
+  h+='<div class="hr"></div>';
+  if(sup){
+    h+='<div class="rowline"><span>Aura radius</span><b>'+(supportRadius(t)/CELL).toFixed(1)+' cells</b></div>';
+    h+='<div class="rowline"><span>Effect</span><b>'+(t.key==='wfe'?('+'+Math.round(((t.branch==='A'?1.6:1.3)-1)*100)+'% fire rate'):('+'+Math.round((t.branch==='A'?42:20))+'% crit'))+'</b></div>';
+  }else{
+    h+='<div class="rowline"><span>Damage / hit</span><b>'+Math.round(st.dmg)+(st.shots>1?' ×'+st.shots:'')+'</b></div>';
+    h+='<div class="rowline"><span>Rate</span><b>'+st.rate.toFixed(2)+'/s</b></div>';
+    h+='<div class="rowline"><span>Effective DPS</span><b class="cy">'+fmt(st.dmg*st.rate*st.shots)+'</b></div>';
+    h+='<div class="rowline"><span>Range</span><b>'+(st.range/CELL).toFixed(1)+' cells</b></div>';
+    if(st.crit>0)h+='<div class="rowline"><span>Crit chance</span><b>'+Math.round(st.crit*100)+'%</b></div>';
+    if(st.pen>0)h+='<div class="rowline"><span>Armor ignored</span><b>'+(st.pen>900?'all':st.pen)+'</b></div>';
+    if(st.splash>0)h+='<div class="rowline"><span>Splash</span><b>'+(st.splash/CELL).toFixed(2)+' cells</b></div>';
+  }
+  h+='<div class="hr"></div><h3 class="sec">Holding</h3>';
+  var comp=Math.min(t.held*compRate(),compCap());
+  h+='<div class="rowline"><span>Waves held</span><b>'+t.held+'</b></div>';
+  h+='<div class="rowline"><span>Compounded damage</span><b class="up">+'+Math.round(comp*100)+'%</b> </div>';
+  h+='<div class="rowline"><span>Cap</span><b>+'+Math.round(compCap()*100)+'%</b></div>';
+  h+='<div class="rowline"><span>Cost basis</span><b class="am">'+money(t.invested)+'</b></div>';
+  h+='<div class="hr"></div>';
+
+  var uc=upCost(t);
+  if(t.level>=4){
+    h+='<div class="rowline"><span>Tier</span><b>Fully upgraded</b></div>';
+  }else if(t.level===1&&!t.branch){
+    h+='<h3 class="sec">Choose a path — permanent</h3>';
+    h+='<div class="branch">';
+    var cb=G.cash>=uc?'btn act':'btn idle';
+    h+='<button class="'+cb+'" data-act="upA" '+(G.cash<uc?'disabled':'')+'>'+D.branchA.n+'<small>'+D.branchA.d+'</small><span class="p">'+money(uc)+'</span></button>';
+    h+='<button class="'+cb+'" data-act="upB" '+(G.cash<uc?'disabled':'')+'>'+D.branchB.n+'<small>'+D.branchB.d+'</small><span class="p">'+money(uc)+'</span></button>';
+    h+='</div>';
+  }else{
+    var canS=G.cash>=uc;
+    h+='<button class="'+(canS?'btn act':'btn idle')+'" data-act="up" '+(canS?'':'disabled')+'>'+
+      '<span class="state">'+(canS?'Available':'Need '+money(uc-G.cash))+'</span>'+
+      'Upgrade to tier '+(t.level+1)+'<span class="p">'+money(uc)+'</span><small>+45% damage, +12% rate, +5% range</small></button>';
+  }
+  h+='<button class="btn" data-act="profit" '+(t.held<1?'disabled':'')+'>Take profits<span class="p">'+money(Math.round((22*t.held)*(1+t.level*0.5)*(1+0.4*Math.max(0,G.cycleVal))))+'</span><small>Cash now. Compounding resets to zero.</small></button>';
+  h+='<button class="btn sell" data-act="sell">Sell position<span class="p">'+money(sellValue(t))+'</span><small>Refund '+(G.th.powder?'90':'60')+'% of cost basis. All compounding lost.</small></button>';
+  if(!setPane(h))return;
+  elPane.querySelectorAll('[data-act]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var a=b.dataset.act;
+      if(a==='up')upgrade(t);
+      else if(a==='upA')upgrade(t,'A');
+      else if(a==='upB')upgrade(t,'B');
+      else if(a==='profit')takeProfits(t);
+      else if(a==='sell')sell(t);
+    });
+  });
+}
+
+var popEl=document.getElementById('tpop'), lastPop='';
+function popHTML(t){
+  var D=TOWERS[t.key], st=stats(t), sup=!!D.support, uc=upCost(t);
+  var h='<button class="x" data-pop="close" aria-label="Close">&times;</button>';
+  h+=tickHTML(D.tag,D.color);
+  h+='<div class="nm" style="color:'+D.color+'">'+D.name+'</div>';
+  if(sup){
+    h+='<div class="st"><span>Aura radius</span><b>'+(supportRadius(t)/CELL).toFixed(1)+' cells</b></div>';
+    h+='<div class="st"><span>Effect</span><b>'+(t.key==='wfe'
+        ?('+'+Math.round(((t.branch==='A'?1.6:1.3)-1)*100)+'% rate')
+        :('+'+(t.branch==='A'?42:20)+'% crit'))+'</b></div>';
+  }else{
+    h+='<div class="st"><span>Effective DPS</span><b class="cy">'+fmt(st.dmg*st.rate*st.shots)+'</b></div>';
+    h+='<div class="st"><span>Range</span><b>'+(st.range/CELL).toFixed(1)+' cells</b></div>';
+  }
+  h+='<div class="st"><span>Tier</span><b>'+t.level+' / 4'+(t.branch?' &middot; '+t.branch:'')+'</b></div>';
+  h+='<div class="st"><span>Held</span><b class="up">'+t.held+'w &middot; +'+Math.round(Math.min(t.held*compRate(),compCap())*100)+'%</b></div>';
+  if(t.level>=4){
+    h+='<div class="st" style="margin-top:5px"><span>Fully upgraded</span><b></b></div>';
+  }else if(t.level===1&&!t.branch){
+    var canU=G.cash>=uc, cu=canU?'btn act':'btn idle';
+    h+='<button class="'+cu+'" data-pop="upA" '+(canU?'':'disabled')+'>'+D.branchA.n+'<span class="p">'+money(uc)+'</span><small>'+(canU?D.branchA.d:('Need '+money(uc-G.cash)+' more'))+'</small></button>';
+    h+='<button class="'+cu+'" data-pop="upB" '+(canU?'':'disabled')+'>'+D.branchB.n+'<span class="p">'+money(uc)+'</span><small>'+(canU?D.branchB.d:('Need '+money(uc-G.cash)+' more'))+'</small></button>';
+  }else{
+    var can1=G.cash>=uc;
+    h+='<button class="'+(can1?'btn act':'btn idle')+'" data-pop="up" '+(can1?'':'disabled')+'>'+
+      '<span class="state">'+(can1?'Available':'Need '+money(uc-G.cash))+'</span>'+
+      'Upgrade to tier '+(t.level+1)+'<span class="p">'+money(uc)+'</span></button>';
+  }
+  h+='<button class="btn" data-pop="profit" '+(t.held<1?'disabled':'')+'>Take profits<span class="p">'+
+     money(Math.round((22*t.held)*(1+t.level*0.5)*(1+0.4*Math.max(0,G.cycleVal))))+'</span><small>Resets compounding to zero.</small></button>';
+  h+='<button class="btn sell" data-pop="sell">Sell<span class="p">'+money(sellValue(t))+'</span></button>';
+  return h;
+}
+function placePop(t){
+  var scale=canvas.clientWidth/W;
+  if(!scale)return;
+  var px=t.x*scale, py=t.y*scale, pw=popEl.offsetWidth||212, ph=popEl.offsetHeight||190;
+  var pad=CELL*0.62*scale+8;
+  var half=(pad+pw/2)/scale;
+  var fitsR=px+pad+pw<=canvas.clientWidth-4, fitsL=px-pad-pw>=4;
+  var goRight=fitsR&&(!fitsL||distToPath(t.x+half,t.y)>=distToPath(t.x-half,t.y));
+  var left=goRight?px+pad:(fitsL?px-pad-pw:px+pad);
+  left=Math.max(4,Math.min(left,canvas.clientWidth-pw-4));
+  var top=Math.max(4,Math.min(py-ph/2,canvas.clientHeight-ph-4));
+  popEl.style.left=Math.round(left)+'px';
+  popEl.style.top=Math.round(top)+'px';
+}
+function renderPop(){
+  var t=G.sel;
+  if(!t){ popEl.hidden=true; lastPop=''; return; }
+  var h=popHTML(t);
+  if(h!==lastPop){
+    lastPop=h;
+    popEl.innerHTML=h;
+    popEl.hidden=false;
+    popEl.querySelectorAll('[data-pop]').forEach(function(b){
+      b.addEventListener('click',function(ev){
+        if(ev&&ev.stopPropagation)ev.stopPropagation();
+        var a=b.dataset.pop;
+        if(a==='close')G.sel=null;
+        else if(a==='up')upgrade(t);
+        else if(a==='upA')upgrade(t,'A');
+        else if(a==='upB')upgrade(t,'B');
+        else if(a==='profit')takeProfits(t);
+        else if(a==='sell')sell(t);
+        syncUI();
+      });
+    });
+  }
+  popEl.hidden=false;
+  placePop(t);
+}
+
+function renderThesis(){
+  var h='<div class="pane-sticky"><div class="row">'+
+    '<span class="ttl">Long-term thesis</span>'+
+    '<span class="bal"><b>'+G.conv+'</b> conviction to spend</span>'+
+    '</div></div>';
+  h+='<p class="pane-note">Conviction accrues at the end of every wave &mdash; 3 base, +1 more if you did not sell or realize anything, +5 for clearing a boss. It buys permanent structural edge, not this wave&rsquo;s damage.</p><div class="hr"></div>';
+  THESIS.forEach(function(n,i){
+    var lvl=G.th[n.id], maxed=lvl>=n.max, cost=maxed?0:n.cost[lvl];
+    var can=!maxed&&G.conv>=cost;
+    var cls=maxed?'btn done':(can?'btn act':'btn idle');
+    var state=maxed?'Maxed':(can?'Available':'Need '+(cost-G.conv)+' more');
+    h+='<button class="'+cls+'" data-th="'+n.id+'" '+((maxed||!can)?'disabled':'')+'>'+
+      '<span class="state">'+state+'</span>'+
+      n.name+' <span style="color:var(--ink-faint)">'+lvl+'/'+n.max+'</span>'+
+      (maxed?'':'<span class="p c">'+cost+'</span>')+
+      '<small>'+n.d+'</small></button>';
+  });
+  if(!setPane(h))return;
+  elPane.querySelectorAll('[data-th]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var id=b.dataset.th, n=null;
+      for(var i=0;i<THESIS.length;i++)if(THESIS[i].id===id)n=THESIS[i];
+      var lvl=G.th[id];
+      if(lvl>=n.max||G.conv<n.cost[lvl])return;
+      G.conv-=n.cost[lvl];G.th[id]++;
+      syncUI();
+    });
+  });
+}
+
+var TEXT_STEPS=[{n:'Normal',v:1},{n:'Large',v:1.15},{n:'Larger',v:1.32}];
+function renderAccess(){
+  var h='<div class="pane-sticky"><div class="row">'+
+    '<span class="ttl">Display</span><span class="bal">Accessibility</span>'+
+    '</div></div>';
+  h+='<p class="pane-note">These apply immediately and stay for this session. They are not saved between visits.</p>';
+
+  h+='<div class="hr"></div><h3 class="sec">Text size</h3><div class="branch" style="grid-template-columns:repeat(3,1fr)">';
+  TEXT_STEPS.forEach(function(st,i){
+    h+='<button class="'+(A11Y.ts===st.v?'btn act':'btn idle')+'" data-ts="'+i+'">'+st.n+'</button>';
+  });
+  h+='</div>';
+
+  function toggle(key,label,desc,on){
+    return '<button class="'+(on?'btn act':'btn idle')+'" data-tog="'+key+'">'+
+      '<span class="state">'+(on?'On':'Off')+'</span>'+label+'<small>'+desc+'</small></button>';
+  }
+  h+='<div class="hr"></div><h3 class="sec">Legibility</h3>';
+  h+=toggle('hc','High contrast','Lifts dimmed labels and headers from 2.5:1 to 6:1, and outlines panels.',A11Y.hc);
+  h+=toggle('marks','Bigger board markers','Draws threats, positions and shots 30% larger on the floor.',A11Y.marks);
+  h+='<div class="hr"></div><h3 class="sec">Motion</h3>';
+  h+=toggle('motion','Reduce motion','Stops pulsing, screen shake and confetti. Attractors become static rings.',A11Y.motion);
+  h+='<p class="pane-note" style="margin-top:12px">Every colour signal in the game is paired with text \u2014 costs show a shortfall, abilities read Ready or Charging, and threats carry their ticker \u2014 so nothing here depends on telling hues apart.</p>';
+
+  if(!setPane(h))return;
+  elPane.querySelectorAll('[data-ts]').forEach(function(b){
+    b.addEventListener('click',function(){ A11Y.ts=TEXT_STEPS[+b.dataset.ts].v; applyA11y(); lastPaneHtml=null; syncUI(); });
+  });
+  elPane.querySelectorAll('[data-tog]').forEach(function(b){
+    b.addEventListener('click',function(){ var k=b.dataset.tog; A11Y[k]=!A11Y[k]; applyA11y(); lastPaneHtml=null; syncUI(); });
+  });
+}
+
+function renderCycle(){
+  var v=G.cycleVal, ph=phaseName(v);
+  var h='<h3 class="sec">Silicon cycle &middot; '+ph+'</h3>'+
+    '<canvas id="osc-big" style="display:block;width:100%;height:130px;border:1px solid var(--line);background:#0a1020"></canvas>'+
+    '<p class="empty" style="margin-top:9px">Solid copper is where the cycle has been. Dashed cyan is where it is going &mdash; the shape is fixed and knowable, only your timing is not.</p>'+
+    '<div class="hr"></div>'+
+    '<div class="rowline"><span>Build &amp; upgrade cost</span><b class="'+(costMul()<1?'up':'dn')+'">&times;'+costMul().toFixed(2)+'</b></div>'+
+    '<div class="rowline"><span>Bounty per clear</span><b class="'+(bountyMul()>1?'up':'dn')+'">&times;'+bountyMul().toFixed(2)+'</b></div>'+
+    '<div class="rowline"><span>Memory output</span><b class="'+(v>=0?'up':'dn')+'">'+(v>=0?'+':'')+Math.round(v*65)+'%</b></div>'+
+    '<div class="rowline"><span>Wave size pressure</span><b>'+(v<-0.18?'+25% count':'normal')+'</b></div>'+
+    '<div class="hr"></div>'+
+    '<h3 class="sec">How to trade it</h3>'+
+    '<p class="empty"><b class="cy">Downcycle:</b> positions are cheap and waves are fatter. Build and upgrade here.<br>'+
+    '<b class="cy">Upcycle:</b> clears pay a premium and Memory output peaks. Harvest here, and think twice before buying.<br><br>'+
+    'Holding through a full turn of the cycle is what compounding rewards. Selling at the top feels good and costs you the compounding that made the position worth holding.</p>';
+  if(!setPane(h))return;
+  drawOscOn(document.getElementById('osc-big'),true);
+}
+
+function renderCodex(){
+  var seenN=0;
+  EKEYS.forEach(function(k){ if(G.seen[k])seenN++; });
+  var h='<div class="pane-sticky"><div class="row">'+
+    '<span class="ttl">Threat book</span>'+
+    '<span class="bal"><b>'+seenN+'</b>/'+EKEYS.length+' logged</span>'+
+    '</div></div>';
+  h+='<p class="pane-note">Each threat has a position that answers it cleanly. Entries unlock the first time a threat appears.</p><div class="hr"></div>';
+  EKEYS.forEach(function(k){
+    var E=ENEMIES[k], seen=!!G.seen[k];
+    h+='<div class="codex-item'+(seen?'':' locked')+'" style="border-left-color:'+(seen?E.color:'#2a3550')+'">'+
+      '<div class="cn" style="color:'+(seen?E.color:'')+'">'+(seen?E.name:'— — —')+'</div>'+
+      '<div class="cd">'+(seen?E.d:'Not yet encountered.')+'</div>'+
+      (seen?'<div class="cc"><span class="lab">Counter</span>'+counterHTML(E.c)+'</div>':'')+
+      '</div>';
+  });
+  setPane(h);
+}
+
+/* wire strip: wave manifest by default, threat briefing when something new shows up.
+   Lives below the board so it never covers playable space. */
+var wireEl=document.getElementById('wire'),
+    wTitle=document.getElementById('wire-title'),
+    wSub=document.getElementById('wire-sub'),
+    wBody=document.getElementById('wire-body');
+var lastWire='';
+var briefEl=document.getElementById('brief'),
+    bW=document.getElementById('brief-w'), bN=document.getElementById('brief-n'),
+    bD=document.getElementById('brief-d'), bC=document.getElementById('brief-c'),
+    bBar=document.getElementById('brief-bar');
+var briefQueue=[], briefT=0, BRIEF_LEN=7;
+function announce(type){
+  if(G.seen[type])return;
+  G.seen[type]=true;
+  briefQueue.push(type);
+  if(briefT<=0)showBrief();
+}
+function showBrief(){
+  if(!briefQueue.length){closeBrief();return;}
+  var E=ENEMIES[briefQueue[0]];
+  bW.textContent=G.wave;
+  bN.textContent=E.name; bN.style.color=E.color;
+  bD.textContent=E.d;
+  bC.innerHTML='<span class="lab">Counter</span>'+counterHTML(E.c);
+  bBar.style.width='100%';
+  briefT=BRIEF_LEN;
+  setBriefHeld(false);
+  paintBriefHint();
+  briefEl.hidden=false;
+  document.querySelector('.board').classList.add('frozen');
+  G.alertHold=true;
+}
+function closeBrief(){
+  briefT=0; briefQueue.length=0; setBriefHeld(false);
+  briefEl.hidden=true;
+  document.querySelector('.board').classList.remove('frozen');
+  G.alertHold=false;
+}
+function nextBrief(){
+  briefQueue.shift();
+  if(briefQueue.length)showBrief(); else closeBrief();
+}
+/* Tap the card to hold it open and read; press-and-hold does the same for as
+   long as the finger is down. Tapping the backdrop outside the card resumes. */
+var briefCard=briefEl.querySelector('.brief-card');
+var bHint=document.getElementById('brief-hint');
+var briefHeld=false, pressT=0, pressedCard=false, wasLatched=false;
+
+function setBriefHeld(v){
+  if(briefHeld===v)return;
+  briefHeld=v;
+  if(!briefCard)return;
+  briefCard.classList.toggle('held',v);
+  paintBriefHint();
+}
+function paintBriefHint(){
+  bHint.textContent = briefHeld
+    ? 'Holding \u00b7 tap outside to resume'
+    : 'Floor frozen \u00b7 tap to hold \u00b7 tap outside to resume';
+}
+briefEl.addEventListener('pointerdown',function(ev){
+  pressedCard = briefCard.contains(ev.target);
+  if(pressedCard){ pressT=nowMs(); wasLatched=briefHeld; setBriefHeld(true); }
+});
+briefEl.addEventListener('pointerup',function(ev){
+  if(!pressedCard){ nextBrief(); return; }          /* released outside the card */
+  pressedCard=false;
+  if(nowMs()-pressT>=260) setBriefHeld(false);      /* press-and-hold: release resumes */
+  else setBriefHeld(!wasLatched);                   /* quick tap: toggle the latch */
+});
+briefEl.addEventListener('pointercancel',function(){
+  if(pressedCard){ pressedCard=false; setBriefHeld(false); }
+});
+briefEl.addEventListener('click',function(ev){ ev.stopPropagation(); });
+function manifestHTML(n){
+  var comp=waveComp(n), out='', extra=G.cycleVal<-0.18?1.25:1;
+  for(var i=0;i<comp.length;i++){
+    var E=ENEMIES[comp[i][0]];
+    var cnt=Math.round(comp[i][1]*(E.boss?1:extra));
+    out+=tickHTML(E.name+' x'+cnt,E.color);
+  }
+  return out;
+}
+function renderWire(force){
+  var n=G.started?(G.inWave?G.wave:G.wave+1):1;
+  var title=!G.started?'Wave 1 standing by'
+    :(G.over?'Run over on wave '+G.wave
+    :(G.inWave?'Wave '+G.wave+' inbound':'Next wave '+n+' in '+Math.ceil(Math.max(0,G.breakT))+'s'));
+  var sub=G.over?'margin call':(G.inWave?((G.queue.length+G.enemies.length)+' left on the floor'):'manifest');
+  var html=G.over?'':manifestHTML(n);
+  var sig=title+'|'+sub+'|'+html;
+  if(sig===lastWire&&!force)return;
+  lastWire=sig;
+  wTitle.textContent=title;
+  wSub.textContent=sub;
+  wBody.innerHTML=html;
+}
+
+/* charged abilities */
+var abEls={};
+['halt','tiger'].forEach(function(id){
+  var A=ABIL[id], el=document.getElementById('ab-'+id);
+  el.style.setProperty('--acc',A.color);
+  el.querySelector('.fill').style.background=rgba(A.color,0.13);
+  el.querySelector('b').textContent=A.name;
+  el.querySelector('.k').textContent=A.hot;
+  el.addEventListener('click',function(){fireAbility(id);});
+  bindTip(el,function(){
+    return '<div class="tt" style="color:'+A.color+'">'+A.name+'</div>'+
+      '<div class="tr"><span>Charge</span><b>'+Math.round(clamp(G.ab[id]/A.need,0,1)*100)+'%</b></div>'+
+      '<div class="tr"><span>Duration</span><b>'+A.dur+'s</b></div>'+
+      '<div class="td">'+A.d+'</div>';
+  },A.color);
+  abEls[id]=el;
+});
+function syncAbilities(){
+  ['halt','tiger'].forEach(function(id){
+    var A=ABIL[id], el=abEls[id], c=G.ab[id], ready=c>=A.need;
+    var live=(id==='halt')?G.haltT>0:!!G.tiger;
+    el.querySelector('.fill').style.width=Math.round(clamp(c/A.need,0,1)*100)+'%';
+    el.classList.toggle('ready',ready&&!live);
+    el.classList.toggle('live',live);
+    el.querySelector('em').textContent = live
+      ? ('Active '+((id==='halt'?G.haltT:G.tiger.life).toFixed(1))+'s')
+      : (ready?'Ready':('Charging '+Math.round(c/A.need*100)+'%'));
+  });
+}
+
+/* ---------- active-effect status rail ---------- */
+var railEl=document.getElementById('statrail'), statCards={};
+function makeStat(id,color){
+  var el=document.createElement('div');
+  el.className='stat';
+  el.style.borderColor=rgba(color,0.5);
+  el.innerHTML='<b style="color:'+color+'"></b><div class="sub"></div><div class="bar"><i style="background:'+color+'"></i></div>';
+  railEl.appendChild(el);
+  statCards[id]={el:el,b:el.querySelector('b'),sub:el.querySelector('.sub'),bar:el.querySelector('.bar i')};
+  return statCards[id];
+}
+makeStat('halt',ABIL.halt.color);
+makeStat('tiger',ABIL.tiger.color);
+makeStat('time','#7e8ba6');
+makeStat('super','#f2c14e');
+makeStat('advice','#8fd94a');
+
+/* A charged ability is only useful if you know the moment to spend it. This
+   watches the wave and names the one that fits, at most one at a time. */
+function advice(){
+  if(!G.started||G.over||!G.inWave||G.alertHold)return null;
+  var onFloor=G.enemies.length, remaining=onFloor+G.queue.length;
+  var immune=0, deep=0;
+  for(var i=0;i<G.enemies.length;i++){
+    var e=G.enemies[i];
+    if(e.def.slowImmune)immune++;
+    if(e.dist>TOTAL*0.6)deep++;
+  }
+  var haltReady=G.haltT<=0&&G.ab.halt>=ABIL.halt.need;
+  var tigerReady=!G.tiger&&G.ab.tiger>=ABIL.tiger.need;
+  /* a threat about to reach the book beats everything else */
+  if(haltReady&&deep>=3)
+    return {c:ABIL.halt.color,t:'Use Circuit breaker',s:deep+' near the core - buy time (Q)'};
+  if(haltReady&&immune>0)
+    return {c:ABIL.halt.color,t:'Use Circuit breaker',s:'Slow-immune inbound - only Q stops them'};
+  /* wait until the pack is actually walking, not merely queued - a sweep sent
+     at an empty floor clears nothing */
+  if(tigerReady&&onFloor>=5&&remaining>=8)
+    return {c:ABIL.tiger.color,t:'Use Tiger team',s:onFloor+' on the floor - sweep the line (W)'};
+  return null;
+}
+function setStat(id,on,title,sub,frac){
+  var c=statCards[id];
+  c.el.classList.toggle('on',!!on);
+  if(!on)return;
+  if(c.b.textContent!==title)c.b.textContent=title;
+  c.sub.textContent=sub;
+  c.bar.style.width=Math.round(clamp(frac,0,1)*100)+'%';
+}
+function syncStatusRail(){
+  setStat('halt',G.haltT>0,'Circuit breaker',
+    'All threats at 30% speed - '+Math.max(0,G.haltT).toFixed(1)+'s',G.haltT/ABIL.halt.dur);
+  setStat('tiger',!!G.tiger,'Tiger team',
+    G.tiger?('Sweeping the line - '+Math.max(0,G.tiger.life).toFixed(1)+'s'):'',
+    G.tiger?G.tiger.life/ABIL.tiger.dur:0);
+  var dil=(G.sel||G.ghost||G.holding)&&G.started&&!G.over&&!G.paused&&!G.alertHold;
+  setStat('time',dil,'Time slowed','Floor running at 0.25x',1);
+  setStat('super',G.superT>0,'Supercycle',
+    'Double bounty - '+Math.max(0,G.superT).toFixed(1)+'s',
+    G.superT/Math.max(0.001,Math.min(ABIL.halt.dur,ABIL.tiger.dur)));
+  var adv=advice();
+  var ac=statCards.advice;
+  if(adv){
+    ac.el.style.borderColor=rgba(adv.c,0.55);
+    ac.b.style.color=adv.c;
+    ac.bar.style.background=adv.c;
+  }
+  setStat('advice',!!adv,adv?adv.t:'',adv?adv.s:'',1);
+}
+
+/* ---------- hold / hover summaries ---------- */
+var tipEl=document.getElementById('tip'), tipTimer=null, tipShownAt=0;
+function hideTip(){
+  if(tipTimer){clearTimeout(tipTimer);tipTimer=null;}
+  tipEl.hidden=true; G.holding=false;
+}
+function showTip(html,accent,x,y){
+  if(!html)return;
+  tipEl.innerHTML=html;
+  tipEl.style.setProperty('--acc',accent||'#c98a3c');
+  tipEl.hidden=false;
+  var w=tipEl.offsetWidth||230, h=tipEl.offsetHeight||120;
+  var vw=window.innerWidth, vh=window.innerHeight;
+  var lx=Math.max(6,Math.min(x-w/2,vw-w-6));
+  var ly=y-h-14; if(ly<6)ly=Math.min(y+18,vh-h-6);
+  tipEl.style.left=Math.round(lx)+'px';
+  tipEl.style.top=Math.round(ly)+'px';
+  tipShownAt=nowMs();
+  G.holding=true;
+}
+function bindTip(el,get,accent){
+  var sx0=0,sy0=0;
+  function arm(ev,delay){
+    hideTip();
+    sx0=ev.clientX;sy0=ev.clientY;
+    tipTimer=setTimeout(function(){showTip(get(),accent,sx0,sy0);},delay);
+  }
+  el.addEventListener('pointerenter',function(ev){ if(ev.pointerType==='mouse')arm(ev,110); });
+  el.addEventListener('pointerdown',function(ev){ if(ev.pointerType!=='mouse')arm(ev,320); });
+  el.addEventListener('pointermove',function(ev){
+    if(tipEl.hidden&&tipTimer&&Math.hypot(ev.clientX-sx0,ev.clientY-sy0)>12)hideTip();
+  });
+  el.addEventListener('pointerleave',hideTip);
+  el.addEventListener('pointerup',function(){ setTimeout(hideTip,60); });
+  el.addEventListener('pointercancel',hideTip);
+}
+function tipWasJustShown(){ return !tipEl.hidden && nowMs()-tipShownAt<900; }
+
+/* ---------- the book: a bottom sheet on phones, always-on panel on desktop ---------- */
+var sideEl=document.getElementById('side'), scrimEl=document.getElementById('scrim');
+var sheetPrevPause=false, sheetOpen=false;
+function isPhone(){return window.innerWidth<=760;}
+function openSheet(tabName){
+  if(tabName)setTab(tabName);
+  if(!isPhone())return;
+  if(!sheetOpen){ sheetPrevPause=G.paused; G.paused=true; sheetOpen=true; G.bookOpened=true; }
+  sideEl.classList.add('open');
+  scrimEl.hidden=false;
+  syncUI();
+}
+function closeSheet(){
+  if(!sheetOpen){ sideEl.classList.remove('open'); scrimEl.hidden=true; return; }
+  sheetOpen=false;
+  sideEl.classList.remove('open');
+  scrimEl.hidden=true;
+  if(G.started&&!G.over)G.paused=sheetPrevPause;
+  syncUI();
+}
+document.getElementById('sheet-x').addEventListener('click',closeSheet);
+scrimEl.addEventListener('click',closeSheet);
+document.getElementById('c-menu').addEventListener('click',function(){
+  if(sheetOpen)closeSheet(); else openSheet('thesis');
+});
+
+document.getElementById('osc-strip').addEventListener('click',function(){openSheet('cycle');});
+
+/* ---------- three-step walkthrough ----------
+   Non-blocking: every mark anchors beside the thing it describes, never over the
+   floor, and each step completes on the action itself rather than a dismiss tap. */
+var coachEl=document.getElementById('coach');
+function rectOf(el){
+  if(!el||!el.getBoundingClientRect)return null;
+  var r=el.getBoundingClientRect();
+  return r.width?r:null;
+}
+/* the ringed tower, converted from board space to screen space, so step 2 can
+   sit right next to the thing it is pointing at */
+function towerRect(t){
+  var r=canvas.getBoundingClientRect();
+  if(!r.width||!t)return null;
+  var sc=r.width/W, pad=CELL*0.62*sc;
+  var cx=r.left+t.x*sc, cy=r.top+t.y*sc;
+  return {left:cx-pad,top:cy-pad,right:cx+pad,bottom:cy+pad,width:pad*2,height:pad*2};
+}
+var COACH=[
+  null,
+  {n:'Step 1 of 4',t:'Floor held. Pick a position below, then tap the ringed pad. Swipe for all seven.',
+   rect:function(){return rectOf(deskEl);}},
+  {n:'Step 2 of 4',t:'Placed. Send the wave in when ready \u2014 going early pays a bonus.',
+   rect:function(){return rectOf(document.getElementById('c-wave'));}},
+  {n:'Step 3 of 4',t:'Tap the ringed position to upgrade it.',
+   rect:function(){return towerRect(coachTarget());}},
+  {n:'Step 4 of 4',t:'Floor still held. Conviction buys permanent edge \u2014 open the Book to spend it.',
+   rect:function(){return rectOf(document.getElementById('c-menu'));}}
+];
+function coachTarget(){
+  /* the tower the ring is drawn on, so step 2 can point at it */
+  for(var i=0;i<G.towers.length;i++){
+    var t=G.towers[i];
+    if(t.level<4&&G.cash>=upCost(t))return t;
+  }
+  return null;
+}
+function advanceCoach(){
+  if(!G.coachOn||G.coachStep===0)return;
+  /* steps 1, 2 and 4 hold the clock; step 3 needs the economy running so that
+     an upgrade can become affordable */
+  if(G.coachStep===1&&G.towers.length>0)G.coachStep=2;
+  if(G.coachStep===2&&G.wave>=1){G.coachStep=3;G.paused=false;G.userPaused=false;}
+  if(G.coachStep===3&&G.firstUpgradeDone){G.coachStep=4;G.paused=true;G.userPaused=false;G.pausedForMenu=true;}
+  /* Closing the position menu hands off to the Book prompt - but that prompt is
+     suppressed until conviction can actually buy something. Holding the floor
+     anyway produced a paused game with no card and no explanation. */
+  if(G.coachStep===4&&G.pausedForMenu&&!G.sel){G.pausedForMenu=false;G.paused=false;}
+  if(G.coachStep===4&&!G.sel&&!G.step4Held&&actionsAvailable().thesis>0){
+    G.paused=true;G.userPaused=false;G.step4Held=true;   /* hold once, when the card appears */
+  }
+  if(G.coachStep===4&&G.bookOpened){
+    /* do NOT resume here: the sheet is open at this instant. Clearing the stored
+       pause state is enough - closing the Book then resumes for us. */
+    G.coachStep=0;sheetPrevPause=false;
+  }
+}
+function setSpotlight(n,variant){
+  var sh=document.querySelector('.shell');
+  if(!sh)return;
+  sh.classList.toggle('coaching',n>0);
+  sh.classList.toggle('armed',n===1&&!!G.armed);
+  sh.classList.toggle('menu',n===4&&!!G.sel);
+  sh.classList.toggle('coachspeed',variant==='speed');
+  for(var i=1;i<=4;i++)sh.classList.toggle('coach'+i,n===i&&variant!=='speed');
+}
+function renderCoach(){
+  advanceCoach();
+  var step=G.coachOn?COACH[G.coachStep]:null;
+  /* step 2 waits until an upgrade is genuinely affordable, so the ring never
+     teaches "this pulses and nothing happens" */
+  var variant='';
+  if(step&&G.coachStep===3&&!coachTarget()){
+    /* no upgrade in reach. If nothing can be built either, the honest advice is
+       to run the floor faster rather than sit and wait. */
+    step=(actionsAvailable().build===0)?{
+      n:'Nothing to buy yet',
+      t:'Cash is short. Run the floor faster to bank it sooner \u2014 the front-run bonus scales with tempo too.',
+      rect:function(){return rectOf(document.getElementById('c-speed'));}
+    }:null;
+    if(step)variant='speed';
+  }
+  /* step 3 only fires when the Book actually has an affordable move */
+  if(step&&G.coachStep===4&&actionsAvailable().thesis===0)step=null;
+  /* once the menu is open the green Upgrade button is the instruction; keeping
+     the card up here only covers the thing it is telling you to press */
+  if(step&&G.coachStep===3&&G.sel)step=null;
+  /* the menu is still covering the floor right after the upgrade - name the exit */
+  if(G.coachOn&&G.coachStep===4&&G.sel){
+    step={n:'Upgraded',t:'Tap the \u00d7 to close this menu. The floor stays held.',
+          above:true,
+          rect:function(){ return rectOf(popEl.querySelector('.x'))||rectOf(popEl); }};
+  }
+  /* not part of the walkthrough: a plain tip that rides alongside the green
+     speed control so the attractor never appears unexplained */
+  if(!step&&G.speedTipT>0){
+    step={n:'Tempo',noSpot:true,
+      t:'You are still at half speed. Tap the speed control to run the floor faster \u2014 the front-run bonus scales with it.',
+      rect:function(){return rectOf(document.getElementById('c-speed'));}};
+  }
+  if(!step||!G.started||G.over||sheetOpen||G.alertHold||G.rotateHold){ coachEl.hidden=true; setSpotlight(0,''); return; }
+  var r=step.rect();
+  if(!r){coachEl.hidden=true;setSpotlight(0,'');return;}
+  setSpotlight(step.noSpot?0:G.coachStep,variant);
+  var sig=step.n;   /* keyed on the card, not the step - step 4 has two variants */
+  if(coachEl.dataset.step!==String(sig)){
+    coachEl.dataset.step=String(sig);
+    coachEl.querySelector('.step').textContent=step.n;
+    coachEl.querySelector('.body').textContent=step.t;
+  }
+  coachEl.hidden=false;
+  var w=coachEl.offsetWidth||258, h=coachEl.offsetHeight||72;
+  var lx=Math.max(8,Math.min(r.left+r.width/2-w/2,window.innerWidth-w-8));
+  var arw=coachEl.querySelector('.arw');
+  /* default below the target; steps that name something at the top of a panel
+     ask to sit above it so the arrow points down at it */
+  var ly, pointDown;
+  if(step.above){
+    ly=r.top-h-12; pointDown=true;
+    if(ly<8){ ly=r.bottom+12; pointDown=false; }
+  }else{
+    ly=r.bottom+12; pointDown=false;
+    if(ly+h>window.innerHeight-8){ ly=r.top-h-12; pointDown=true; }
+  }
+  if(ly<8)ly=8;
+  arw.style.display='';
+  arw.style.left=Math.round(clamp(r.left+r.width/2-lx-4.5,12,w-22))+'px';
+  arw.style.top=(pointDown?h-5:-5)+'px';
+  arw.style.transform='rotate('+(pointDown?45:225)+'deg)';
+  coachEl.style.left=Math.round(lx)+'px';
+  coachEl.style.top=Math.round(ly)+'px';
+}
+
+/* controls */
+document.getElementById('c-wave').addEventListener('click',function(){if(!G.started)begin();else startWave();});
+document.getElementById('c-speed').addEventListener('click',cycleSpeed);
+document.getElementById('c-pause').addEventListener('click',togglePause);
+var SPEEDS=[0.5,1,2,3];
+function cycleSpeed(){
+  var i=SPEEDS.indexOf(G.speed);
+  G.speed=SPEEDS[(i<0?1:i+1)%SPEEDS.length];
+  G.speedTouched=true;
+  syncUI();
+}
+/* Slow play is never taxed - the whole sim scales, so it grants no edge.
+   Instead, running hot pays: the opt-in front-run bonus scales with tempo. */
+function rushBonus(){ return Math.round(G.breakT*7*G.speed); }
+function togglePause(){if(!G.started)return;G.paused=!G.paused;G.userPaused=G.paused;syncUI();}
+
+var ovEl=document.getElementById('overlay');
+function overlay(t,p,btn,mode){
+  ovEl.classList.toggle('fatal',mode==='fatal');
+  ovEl.classList.toggle('win',mode==='win');
+  document.getElementById('ov-t').textContent=t;
+  document.getElementById('ov-p').innerHTML=p;
+  var b=document.getElementById('ov-b');
+  b.textContent=btn;b.style.display='';
+  document.getElementById('ov-skip').style.display='none';
+  ovEl.classList.remove('hidden');
+}
+/* No persistence available here, so the walkthrough is a choice rather than a
+   remembered fact. If you self-host, swap this for:
+     var coached = !localStorage.getItem('siliconCycleSeen');
+   and drop the second button. */
+/* location.reload() is unreliable inside sandboxed viewers - the page is often
+   served from a blob and never comes back. Rebuild the run in place instead. */
+var SPLASH_COPY=document.getElementById('ov-p').innerHTML;
+function resetRun(){
+  var d=freshState(), k;
+  for(k in d)G[k]=d[k];
+  markAuras();
+  closeSheet(); sheetOpen=false; sheetPrevPause=false;
+  briefQueue.length=0; briefT=0; setBriefHeld(false); briefEl.hidden=true;
+  document.querySelector('.board').classList.remove('frozen');
+  hideTip(); setSpotlight(0,'');
+  lastPaneHtml=null; lastWire=''; lastPop=''; coachEl.dataset.step='';
+  ovEl.classList.remove('fatal','win');
+  setTab('thesis');
+  overlay('Silicon Cycle',SPLASH_COPY,'Open the book');
+  /* overlay() hides the skip button for result screens - restore it after */
+  document.getElementById('ov-skip').style.display='';
+  resize(); render(); syncUI();
+}
+document.getElementById('ov-b').addEventListener('click',function(){
+  if(!G.started){ ovEl.classList.add('hidden'); begin(true); syncUI(); return; }
+  if(G.over){ resetRun(); return; }                 /* margin call -> new run */
+  ovEl.classList.add('hidden');
+  G.overlayHold=false; G.paused=false; G.userPaused=false;   /* thesis confirmed -> keep playing */
+  syncUI();
+});
+document.getElementById('ov-skip').addEventListener('click',function(){
+  if(!G.started)begin(false);
+});
+function begin(coached){
+  ovEl.classList.add('hidden');
+  G.started=true;G.paused=false;
+  G.breakT=22;
+  G.coachOn=!!coached;
+  G.speed=coached?0.5:1;
+  /* a first-timer with $400 can buy anything and learns nothing about cost;
+     $175 reaches Analog, Memory and Fabless only */
+  if(coached)G.cash=175;
+  if(coached){G.coachStep=1;G.paused=true;G.userPaused=false;}   /* nothing walks in until step 1 is done */
+  syncUI();
+}
+function statRow(k,v){return '<span>'+k+'</span><b>'+v+'</b>';}
+function lose(){
+  G.over=true;G.inWave=false;
+  G.sel=null;G.armed=null;G.ghost=null;G.queue=[];
+  hideTip();
+  var body='<div class="ov-rule"></div>'+
+    '<div class="ov-stats">'+
+      statRow('Waves survived',Math.max(0,G.wave-1))+
+      statRow('Positions held',G.towers.length)+
+      statRow('Conviction banked',G.conv)+
+      statRow('Peak book DPS',fmt(G.peakDps))+
+      statRow('Cash left',money(G.cash))+
+    '</div>'+
+    'The book drew down to zero. The cycle always turns — the question is whether you are still solvent when it does.';
+  overlay('Margin call',body,'Reopen the book','fatal');
+}
+
+/* ============================================================
+   11. OSCILLATOR (signature element)
+   ============================================================ */
+var oc=document.getElementById('osc');
+function drawOsc(){ drawOscOn(oc,false); }
+function drawOscOn(cv,big){
+  if(!cv)return;
+  var octx=cv.getContext('2d');
+  var w=cv.clientWidth, h=cv.clientHeight||82;
+  if(!w)return;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){
+    cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  }
+  octx.setTransform(dpr,0,0,dpr,0,0);
+  octx.clearRect(0,0,w,h);
+  var mid=h/2-2, amp=h*0.30;
+  octx.strokeStyle='rgba(120,150,200,.15)';octx.lineWidth=1;
+  octx.beginPath();octx.moveTo(0,mid+0.5);octx.lineTo(w,mid+0.5);octx.stroke();
+  octx.setLineDash([2,4]);
+  octx.beginPath();octx.moveTo(0,mid-amp);octx.lineTo(w,mid-amp);
+  octx.moveTo(0,mid+amp);octx.lineTo(w,mid+amp);octx.stroke();
+  octx.setLineDash([]);
+
+  var nowX=w*0.62, spanPast=55, spanFut=34;
+  function px(sec){return nowX+(sec/spanFut)*(w-nowX);}
+  function pxPast(sec){return nowX-(sec/spanPast)*nowX;}
+  /* past */
+  octx.beginPath();
+  for(var s=spanPast;s>=0;s-=0.5){
+    var v=cycleAt(G.cyclePhase-s*0.115);
+    var x=pxPast(s), y=mid-v*amp;
+    if(s===spanPast)octx.moveTo(x,y);else octx.lineTo(x,y);
+  }
+  var grad=octx.createLinearGradient(0,0,nowX,0);
+  grad.addColorStop(0,'rgba(201,138,60,.25)');grad.addColorStop(1,'rgba(201,138,60,.95)');
+  octx.strokeStyle=grad;octx.lineWidth=2;octx.stroke();
+  /* future */
+  octx.beginPath();
+  for(var f=0;f<=spanFut;f+=0.5){
+    var v2=cycleAt(G.cyclePhase+f*0.115);
+    var x2=px(f), y2=mid-v2*amp;
+    if(f===0)octx.moveTo(x2,y2);else octx.lineTo(x2,y2);
+  }
+  octx.strokeStyle='rgba(79,211,232,.55)';octx.lineWidth=1.4;octx.setLineDash([3,3]);octx.stroke();octx.setLineDash([]);
+  /* now */
+  var ny=mid-G.cycleVal*amp;
+  octx.strokeStyle='rgba(219,228,245,.28)';octx.beginPath();octx.moveTo(nowX,6);octx.lineTo(nowX,h-6);octx.stroke();
+  octx.fillStyle=G.cycleVal>0.18?'#5fe08a':(G.cycleVal<-0.18?'#ef5b5b':'#dbe4f5');
+  octx.beginPath();octx.arc(nowX,ny,3.6,0,6.284);octx.fill();
+  if(big){
+    octx.font='600 9px '+getComputedStyle(document.body).fontFamily;
+    octx.fillStyle='rgba(126,139,166,.9)';
+    octx.fillText('PAST',8,h-5);
+    octx.fillText('FORECAST',nowX+7,h-5);
+  }
+  if(cv!==oc)return;
+
+  var ph=phaseName(G.cycleVal), pe=document.getElementById('osc-phase');
+  pe.textContent=ph;
+  pe.style.color=G.cycleVal>0.18?'#5fe08a':(G.cycleVal<-0.18?'#ef5b5b':'#7e8ba6');
+  document.getElementById('osc-hint').innerHTML=
+    'cost ×'+costMul().toFixed(2)+' &middot; bounty ×'+bountyMul().toFixed(2);
+}
+
+/* ============================================================
+   12. LOOP
+   ============================================================ */
+/* The prompt itself is CSS-driven; this only mirrors it into the sim so the
+   floor is held rather than running unseen behind it. */
+var rotateMQ = window.matchMedia ? window.matchMedia('(orientation:landscape) and (max-height:520px)') : null;
+function syncRotate(){
+  var need = !!(rotateMQ && rotateMQ.matches) && !syncUpright();
+  if(G.rotateHold===need)return;
+  G.rotateHold=need;
+  if(!need){ last=nowMs(); resize(); render(); }
+  syncUI();
+}
+if(rotateMQ){
+  if(rotateMQ.addEventListener)rotateMQ.addEventListener('change',syncRotate);
+  else if(rotateMQ.addListener)rotateMQ.addListener(syncRotate);
+}
+window.addEventListener('orientationchange',function(){
+  setTimeout(function(){ resize(); syncRotate(); wake(); },140);
+});
+/* Some Android builds fire only this one. Harmless to have both; syncRotate
+   returns early when nothing changed. */
+if(window.screen && screen.orientation && screen.orientation.addEventListener){
+  screen.orientation.addEventListener('change',function(){
+    setTimeout(function(){ resize(); syncRotate(); wake(); },140);
+  });
+}
+applyA11y();
+resize();
+syncRotate();
+setTab('thesis');
+syncUI();
+
+var last=performance.now(), uiT=0;
+function frame(now){
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(glLost){requestAnimationFrame(frame);return;}
+  /* one-time tempo tip, on real time so speed changes do not distort it */
+  /* Only meaningful to someone actually running slow. A skip-the-walkthrough
+     player starts at 1x and never touches the control, which used to trip this
+     and tell them they were at half speed. */
+  if(G.started&&!G.over&&!G.speedTouched&&!G.speedTipDone&&G.wave>=3&&G.speed<1&&
+     !G.paused&&!G.alertHold&&!sheetOpen&&G.coachStep===0){
+    G.speedTipDone=true; G.speedTipT=11;
+  }
+  if(G.speedTipT>0){ G.speedTipT=Math.max(0,G.speedTipT-dt); }
+  if(G.speedTouched)G.speedTipT=0;
+
+  if(briefT>0){
+    if(!briefHeld){
+      briefT-=dt;
+      bBar.style.width=Math.max(0,briefT/BRIEF_LEN*100)+'%';
+      if(briefT<=0)nextBrief();
+    }
+  }
+  var deciding=!!(G.sel||G.ghost||G.holding);
+  document.querySelector('.board').classList.toggle('slowmo',deciding&&G.started&&!G.over);
+  /* Ability charge is deliberately outside the speed-scaled step: how long you
+     wait for Circuit Breaker should not change because you slowed the floor
+     down to read something. It still stops dead while paused or frozen. */
+  if(G.started&&!G.paused&&!G.alertHold&&!G.over&&!sheetOpen&&!G.overlayHold&&!G.rotateHold){
+    var chargeRate=G.inWave?1:0.55;
+    if(G.ab.halt<ABIL.halt.need)G.ab.halt=Math.min(ABIL.halt.need,G.ab.halt+dt*chargeRate);
+    if(G.ab.tiger<ABIL.tiger.need)G.ab.tiger=Math.min(ABIL.tiger.need,G.ab.tiger+dt*chargeRate);
+  }
+  if(G.started&&!G.paused&&!G.alertHold&&!G.over&&!sheetOpen&&!G.overlayHold&&!G.rotateHold){
+    var mult=G.speed*(deciding?0.25:1);
+    if(mult<0.2)mult=0.2;
+    var total=dt*mult;
+    var steps=Math.max(1,Math.ceil(total/0.02)), st2=total/steps;
+    for(var i=0;i<steps;i++)update(st2);
+  }else{
+    G.time+=dt;
+  }
+  render();
+  drawOsc();
+  if(tab==='cycle')drawOscOn(document.getElementById('osc-big'),true);
+  syncStatusRail();
+  uiT+=dt;
+  if(uiT>0.25){uiT=0;syncUI();}
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
