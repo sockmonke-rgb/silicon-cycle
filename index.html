@@ -8,7 +8,7 @@
 
   MIT License
 
-  Copyright (c) 2026 Mark Florentino LLC
+  Copyright (c) 2026 Mark, Florentino LLC
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -300,11 +300,7 @@ h3.sec{font-size:calc(9.5px * var(--ts));letter-spacing:.22em;color:var(--ink-fa
 .osc-read .hint{font-size:calc(9px * var(--ts));letter-spacing:.04em;color:var(--ink-faint);white-space:nowrap}
 
 /* status rail: active effects slide in from the board edge */
-/* build watermark, corner of the floor - deliberately quiet */
-.build-mark{position:absolute;top:6px;right:10px;z-index:3;pointer-events:none;user-select:none;
-  font-size:calc(9px * var(--ts));letter-spacing:.22em;text-transform:uppercase;
-  color:var(--ink-faint);opacity:.42}
-.statrail{position:absolute;top:30px;right:0;z-index:4;display:flex;flex-direction:column;
+.statrail{position:absolute;top:8px;right:0;z-index:4;display:flex;flex-direction:column;
   gap:5px;align-items:flex-end;pointer-events:none}
 .stat{transform:translateX(105%);transition:transform .3s cubic-bezier(.2,.8,.25,1),opacity .3s;
   opacity:0;background:rgba(11,16,29,.93);border:1px solid;border-right:none;
@@ -436,6 +432,11 @@ body.no-motion *{animation:none!important}
   width:14px;height:2px;border-radius:2px;background:var(--trace)}
 @keyframes rotnudge{0%,55%,100%{transform:rotate(-90deg)}75%,92%{transform:rotate(0deg)}}
 @media (orientation:landscape) and (max-height:520px){ #rotate{display:flex} }
+/* ...unless the physical screen is upright. A short, wide window on an upright
+   phone (split screen, freeform window) is not a rotation problem, and asking
+   someone to turn a phone they are already holding correctly is a dead end.
+   JS adds .upright; without JS the query above still governs, as before. */
+html.upright #rotate{display:none!important}
 @media (prefers-reduced-motion:reduce){ #rotate .rot-icon span{animation:none;transform:rotate(0deg)} }
 
 .scrim{position:fixed;inset:0;z-index:19;background:rgba(5,8,15,.6);
@@ -563,7 +564,6 @@ body.no-motion *{animation:none!important}
 
       <div class="board">
         <canvas id="gl"></canvas>
-        <span class="build-mark">RC4.3</span>
         <div class="statrail" id="statrail"></div>
         <div class="tpop" id="tpop" hidden></div>
         <div class="brief" id="brief" hidden>
@@ -628,8 +628,8 @@ body.no-motion *{animation:none!important}
 <div id="rotate">
   <div class="rot-inner">
     <div class="rot-icon"><span></span></div>
-    <h2>Turn your phone upright</h2>
-    <p>Silicon Cycle is built for portrait. The floor is held until you rotate back.</p>
+    <h2>Portrait only</h2>
+    <p>Silicon Cycle runs upright, so the floor is held here. If your phone is already upright, the browser has only part of the screen &mdash; give it the full height to carry on.</p>
   </div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
@@ -637,7 +637,7 @@ body.no-motion *{animation:none!important}
 <div class="coach" id="coach" hidden><i class="arw"></i><span class="step"></span><span class="body"></span></div>
 
 <script>
-/* Silicon Cycle - MIT License - Copyright (c) 2026 Mark Florentino LLC */
+/* Silicon Cycle - MIT License - Copyright (c) 2026 Mark, Florentino LLC */
 window.addEventListener('error',function(ev){
   /* A throw during init would otherwise leave the splash up with dead controls.
      Say what happened instead of failing silently. */
@@ -662,10 +662,33 @@ window.addEventListener('error',function(ev){
 /* Decided by the SHORT side, not the current orientation: a phone held sideways
    is still a phone, and it must not load the wide desktop map only to be rotated
    back a second later. */
-var SHORT_SIDE = Math.min(window.innerWidth||9999, window.innerHeight||9999);
+/* Measured from the physical screen where possible. window.inner* describes the
+   window, which can be short and wide on an upright phone; screen.* cannot. */
+var SCR_W = (window.screen && screen.width)  || 0;
+var SCR_H = (window.screen && screen.height) || 0;
+var SHORT_SIDE = (SCR_W && SCR_H) ? Math.min(SCR_W, SCR_H)
+                                  : Math.min(window.innerWidth||9999, window.innerHeight||9999);
 var PHONE = SHORT_SIDE < 560;
 var PORTRAIT = PHONE || window.innerHeight>window.innerWidth*1.05;
 var IS_TOUCH = ('ontouchstart' in window)||navigator.maxTouchPoints>0;
+/* Ground truth for "the phone is actually sideways", in descending order of
+   trust. If nothing here answers, fall through to true and let the viewport
+   decide, which is the pre-existing behaviour. */
+function deviceLandscape(){
+  var so = window.screen && screen.orientation;
+  if(so && typeof so.type === 'string') return so.type.indexOf('landscape') === 0;
+  if(typeof window.orientation === 'number') return Math.abs(window.orientation) === 90;
+  if(SCR_W && SCR_H) return SCR_W !== SCR_H ? SCR_W > SCR_H : true;
+  return true;
+}
+/* Mirrors that onto <html> so the CSS prompt can be suppressed. Returns whether
+   the device is upright. */
+function syncUpright(){
+  var up = !deviceLandscape();
+  document.documentElement.classList.toggle('upright', up);
+  return up;
+}
+syncUpright();
 /* Devices with a real hovering cursor preview on hover; everything else needs
    an explicit confirm step, so a stray tap never spends cash. */
 var HOVER_OK = !!(window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches);
@@ -3072,7 +3095,7 @@ function drawOscOn(cv,big){
    floor is held rather than running unseen behind it. */
 var rotateMQ = window.matchMedia ? window.matchMedia('(orientation:landscape) and (max-height:520px)') : null;
 function syncRotate(){
-  var need = !!(rotateMQ && rotateMQ.matches);
+  var need = !!(rotateMQ && rotateMQ.matches) && !syncUpright();
   if(G.rotateHold===need)return;
   G.rotateHold=need;
   if(!need){ last=nowMs(); resize(); render(); }
@@ -3085,7 +3108,13 @@ if(rotateMQ){
 window.addEventListener('orientationchange',function(){
   setTimeout(function(){ resize(); syncRotate(); wake(); },140);
 });
-
+/* Some Android builds fire only this one. Harmless to have both; syncRotate
+   returns early when nothing changed. */
+if(window.screen && screen.orientation && screen.orientation.addEventListener){
+  screen.orientation.addEventListener('change',function(){
+    setTimeout(function(){ resize(); syncRotate(); wake(); },140);
+  });
+}
 applyA11y();
 resize();
 syncRotate();
