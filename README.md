@@ -1,6 +1,6 @@
 # Silicon Cycle
 
-A tower defense game about running a semiconductor portfolio through the boom-and-bust cycle. One HTML file, no dependencies, no network calls, no tracking.
+A tower defense game about running a semiconductor portfolio through the boom-and-bust cycle. One HTML file, no dependencies, no tracking, and no network calls except a report you choose to send.
 
 **[Play it →](https://sockmonke-rgb.github.io/silicon-cycle/)**
 
@@ -78,10 +78,16 @@ Under **Book → Display**:
 
 Colour is never the only signal — costs print their shortfall, abilities read *Ready* or *Charging*, and threats carry their ticker.
 
+## Reporting a problem
+
+Open **Book → ⚑**, or tap **⚑ Report a problem** on the Margin call screen. Say what happened, add an email if you'd like a reply, and tap **Send report**. It sends a short text report: version, browser, screen and orientation, frame rate, display settings, the run's state and any errors. Nothing else. **What gets sent · copy** shows the whole report and copies it.
+
+Reports go through the same relay as [Astrobara Lines](https://github.com/sockmonke-rgb/astrobara-lines/tree/main/report-worker), which files each one privately. Until that relay is set (`REPORT_URL` near the top of the script), Send copies the report and offers a GitHub issue instead.
+
 ## Technical notes
 
 - **One file.** Roughly 150 KB of HTML, CSS and JavaScript. No build step, no bundler, no dependencies.
-- **No network.** Zero external requests. Fonts are system stacks; the glyph atlas is generated at runtime onto a canvas.
+- **No network.** Zero external requests while you play. Fonts are system stacks; the glyph atlas is generated at runtime onto a canvas. The only request the game can make is a report you send from **Book → ⚑**, and only once `REPORT_URL` is set.
 - **No storage.** Nothing is written to `localStorage` or cookies, so nothing persists between visits — including display settings.
 - **Rendering.** Custom WebGL2 renderer (falls back to WebGL1) with a single SDF shader batching every shape through one draw call. Handles a full board at wave 110+ in about 9ms of CPU per frame.
 - **Two maps.** A 13×14 portrait board for phones and a 24×14 landscape board for wider screens, chosen by the device's short side. Enemy speed is normalised against route length, so both play identically.

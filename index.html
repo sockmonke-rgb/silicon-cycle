@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <!--
   Silicon Cycle - a semiconductor portfolio tower defense.
-  Single file, no dependencies, no network calls.
+  Single file, no dependencies, no network calls except a report you choose to send.
 
   MIT License
 
@@ -227,7 +227,7 @@ button{touch-action:manipulation;-webkit-appearance:none;appearance:none}
   -webkit-appearance:none;appearance:none;box-sizing:border-box;
   line-height:1;white-space:nowrap;overflow:hidden;
   background:none;border:none;border-right:1px solid var(--line);color:var(--ink-faint);
-  font-family:inherit;font-size:calc(9.5px * var(--ts));letter-spacing:.1em;
+  font-family:inherit;font-size:calc(9.5px * var(--ts));letter-spacing:.04em;
   cursor:pointer;text-transform:uppercase}
 .tab:last-child{border-right:none}
 /* Every tab is now identical in structure and style - same element, same span,
@@ -238,6 +238,23 @@ button{touch-action:manipulation;-webkit-appearance:none;appearance:none}
 .tab-ind{position:absolute;bottom:0;left:0;width:0;height:2px;background:var(--trace);
   transition:left .18s ease,width .18s ease;pointer-events:none}
 .pane{padding:12px 13px 18px;font-size:calc(12px * var(--ts));line-height:1.6;max-height:560px;overflow:auto;position:relative}
+/* Report: an icon tab narrow enough that the five text tabs keep their width
+   (32px in the desktop side panel, 44px for a thumb on the phone sheet) */
+.tab.tab-ic{flex:0 0 32px;font-size:calc(13px * var(--ts));letter-spacing:0}
+.rep{display:block;width:100%;margin-top:8px;padding:9px 10px;border-radius:0;border:1px solid #2c3b5c;background:#0a1020;color:var(--ink);
+  font-family:inherit;font-size:max(16px,calc(13px * var(--ts)));line-height:1.4;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+textarea.rep{min-height:76px;resize:vertical}
+.rep::placeholder{color:var(--ink-faint)}
+.rep:focus{outline:2px solid var(--si);outline-offset:-1px}
+.hp{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+.repfail{margin-top:10px;padding:9px 10px;border:1px solid #5c3339;background:#2a1a1e;font-size:calc(11.5px * var(--ts));line-height:1.55}
+.repfail a{color:var(--phos);font-weight:700}
+.repstat{margin-top:6px;font-size:calc(11px * var(--ts));line-height:1.5;color:var(--conv)}
+.repstat:empty{display:none}
+details.repmore{margin-top:12px}
+details.repmore summary{cursor:pointer;font-size:calc(9.5px * var(--ts));letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint);padding:6px 0}
+textarea.diag{display:block;width:100%;height:170px;margin-top:8px;padding:8px 9px;border-radius:0;border:1px solid var(--line);background:#05070d;color:var(--ink-dim);
+  font-family:inherit;font-size:calc(11px * var(--ts));line-height:1.45;resize:vertical;white-space:pre;overflow:auto;-webkit-user-select:text;user-select:text}
 .pane::-webkit-scrollbar{width:6px}.pane::-webkit-scrollbar-thumb{background:#26314c}
 .empty{color:var(--ink-faint);font-size:calc(11.5px * var(--ts));line-height:1.75}
 
@@ -518,6 +535,7 @@ html.upright #rotate{display:none!important}
   .grip-x:hover{color:var(--ink)}
   .tabs{flex:0 0 auto}
   .tab{height:42px;padding:0 2px;font-size:calc(9px * var(--ts));letter-spacing:.04em}
+  .tab.tab-ic{flex-basis:44px}
   .pane{flex:1 1 auto;max-height:none;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 13px 20px}
 
   .tpop{width:min(206px,calc(100% - 14px))}
@@ -583,6 +601,7 @@ html.upright #rotate{display:none!important}
             The cycle is <b>knowable</b> — the oscillator forecasts the next 30 seconds. Build in the downcycle when positions are cheap; harvest in the upcycle when clears pay more. Positions <b>compound</b> the longer you hold them, and pay a dividend every wave. Selling for quick cash resets all of it.</p>
             <button class="btn go" id="ov-b" style="max-width:300px;margin:0 auto;text-align:center">Open the book<small style="text-align:center">Walks you through your first position, upgrade and thesis.</small></button>
             <button class="btn" id="ov-skip" style="max-width:300px;margin:6px auto 0;text-align:center">Skip the walkthrough<small style="text-align:center">Straight to the floor at full speed.</small></button>
+            <button class="btn" id="ov-rep" style="max-width:300px;margin:6px auto 0;text-align:center;display:none">&#9873; Report a problem</button>
           </div>
         </div>
       </div>
@@ -620,6 +639,7 @@ html.upright #rotate{display:none!important}
         <button class="tab" data-pane="codex"><span class="tl">Threats</span></button>
         <button class="tab" data-pane="cycle"><span class="tl">Cycle</span></button>
         <button class="tab" data-pane="access" aria-label="Display and accessibility"><span class="tl">Display</span></button>
+        <button class="tab tab-ic" data-pane="report" aria-label="Report a problem" title="Report a problem"><span class="tl">&#9873;</span></button>
       </div>
       <div class="pane" id="pane"></div>
     </aside>
@@ -638,6 +658,15 @@ html.upright #rotate{display:none!important}
 
 <script>
 /* Silicon Cycle - MIT License - Copyright (c) 2026 Mark Florentino LLC */
+/* Report diagnostics start first, so they catch errors anywhere below. */
+var diagErrs=[];
+function diagNote(m){ diagErrs.push(new Date().toISOString().slice(11,19)+' '+m); if(diagErrs.length>30)diagErrs.shift(); }
+window.addEventListener('error',function(ev){
+  diagNote(String((ev&&ev.message)||'error')+' @'+String((ev&&ev.filename)||'').split('/').pop()+':'+((ev&&ev.lineno)||0)+':'+((ev&&ev.colno)||0));
+});
+window.addEventListener('unhandledrejection',function(ev){
+  var r=ev&&ev.reason; diagNote('promise: '+((r&&(r.stack||r.message))||r));
+});
 window.addEventListener('error',function(ev){
   /* A throw during init would otherwise leave the splash up with dead controls.
      Say what happened instead of failing silently. */
@@ -659,6 +688,14 @@ window.addEventListener('error',function(ev){
 /* ============================================================
    0. CONSTANTS & HELPERS
    ============================================================ */
+var VERSION='1.1.0';
+/* Where Book -> Report sends reports: a relay that files each one as an issue in
+   a private repo. The payload matches Astrobara Lines', so the Cloudflare Worker
+   in its report-worker/ folder takes these too. While this is empty, Send copies
+   the report and offers a public GitHub issue instead, and the game makes no
+   network requests at all. */
+var REPORT_URL='';
+var ISSUE_URL='https://github.com/sockmonke-rgb/silicon-cycle/issues/new';
 /* Decided by the SHORT side, not the current orientation: a phone held sideways
    is still a phone, and it must not load the wide desktop map only to be rotated
    back a second later. */
@@ -2129,6 +2166,9 @@ document.addEventListener('click',function(ev){
 });
 
 document.addEventListener('keydown',function(ev){
+  /* typing in the report boxes is not a shortcut */
+  var tg=ev.target;
+  if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
   var k=ev.key.toLowerCase();
   if(k>='1'&&k<='7'){G.armed=TKEYS[parseInt(k,10)-1];G.ghost=null;G.sel=null;syncUI();}
   else if(k==='escape'){G.armed=null;G.ghost=null;G.sel=null;syncUI();}
@@ -2265,6 +2305,7 @@ function syncUI(){
   else if(tab==='thesis')renderThesis();
   else if(tab==='cycle')renderCycle();
   else if(tab==='access')renderAccess();
+  else if(tab==='report')renderReport();
   else renderCodex();
 }
 
@@ -2497,6 +2538,182 @@ function renderAccess(){
   elPane.querySelectorAll('[data-tog]').forEach(function(b){
     b.addEventListener('click',function(){ var k=b.dataset.tog; A11Y[k]=!A11Y[k]; applyA11y(); lastPaneHtml=null; syncUI(); });
   });
+}
+
+/* ---------- report: Book -> flag tab ----------
+   A note, an optional email, and Send. Mirrors Astrobara Lines' Report tab and
+   sends the same payload to REPORT_URL. If that isn't set or can't be reached,
+   the report is copied and a GitHub issue offered instead.
+   syncUI re-renders the pane every 250ms whenever its HTML changes, so nothing
+   that moves while someone types (their text, the live diagnostics, the status
+   line) goes into the HTML: those are written into the DOM after each render. */
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function inClaude(){return !!(window.claude&&typeof window.claude.use==='function');}
+var rep={msg:'',mail:'',busy:false,sent:0,failed:null,more:inClaude(),stat:''};
+function repWait(){return rep.sent&&nowMs()-rep.sent<60000;}   /* one report a minute from here */
+var PERF={avg:16.7,slow:0,frames:0};
+function perfTick(ms){ if(!(ms>0)||ms>1000)return; PERF.frames++; PERF.avg+=(ms-PERF.avg)*0.05; if(ms>50)PERF.slow++; }
+var glDesc=null;
+function glInfo(){
+  if(glDesc)return glDesc;
+  try{
+    var v=(typeof WebGL2RenderingContext!=='undefined'&&gl instanceof WebGL2RenderingContext)?'webgl2':'webgl1';
+    var x=gl.getExtension('WEBGL_debug_renderer_info');
+    glDesc=v+' · '+(x?gl.getParameter(x.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER));
+  }catch(e){ glDesc='unavailable'; }
+  return glDesc;
+}
+function repTitle(){
+  var where=!G.started?'start screen':('wave '+G.wave+(G.over?' · margin call':'')+(G.won?' · thesis confirmed':'')+
+    (G.coachOn&&G.coachStep>0?' · walkthrough':''));
+  var note=rep.msg.replace(/\s+/g,' ').trim();
+  return 'Silicon Cycle v'+VERSION+' · '+where+(note?' · '+(note.length>60?note.slice(0,59)+'…':note):'');
+}
+function diagText(){
+  var L=[], yn=function(b){return b?'yes':'no';}, so=window.screen&&screen.orientation;
+  var rm=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  L.push('Silicon Cycle diagnostics · v'+VERSION+' · '+new Date().toISOString());
+  L.push('device: '+navigator.userAgent);
+  L.push('screen: window '+window.innerWidth+'×'+window.innerHeight+' · screen '+SCR_W+'×'+SCR_H+' @'+(window.devicePixelRatio||1)+'x'+
+    ' · short side '+SHORT_SIDE+' · phone '+yn(PHONE)+' · map '+COLS+'×'+ROWS+
+    ' · orientation '+((so&&so.type)||'-')+' · window.orientation '+(typeof window.orientation==='number'?window.orientation:'-')+
+    ' · upright '+yn(!deviceLandscape())+' · rotate prompt '+yn(G.rotateHold)+
+    ' · touch points '+(navigator.maxTouchPoints||0)+' · hover '+yn(HOVER_OK)+' · in Claude '+yn(inClaude()));
+  L.push('gl: '+glInfo()+' · context lost '+yn(glLost));
+  L.push('perf: ~'+Math.round(1000/PERF.avg)+' fps · slow frames '+PERF.slow+' of '+PERF.frames);
+  L.push('settings: text '+Math.round(A11Y.ts*100)+'% · high contrast '+yn(A11Y.hc)+' · bigger markers '+yn(A11Y.marks)+
+    ' · reduce motion '+yn(A11Y.motion)+' (system '+yn(rm)+')');
+  L.push('run: '+(G.started?'started':'not started')+' · wave '+G.wave+(G.inWave?' (in wave)':'')+' · NAV '+Math.round(G.nav)+'%'+
+    ' · cash '+money(G.cash)+' · conviction '+G.conv+' · speed '+G.speed+'× · '+(G.paused?'paused':'running')+
+    (G.over?' · OVER':'')+(G.won?' · won':'')+(G.coachOn?' · walkthrough step '+G.coachStep:'')+
+    ' · time '+Math.round(G.time)+'s · book '+(sheetOpen?'open':'closed')+' on '+tab);
+  L.push('cycle: '+G.cycleVal.toFixed(2)+' '+phaseName(G.cycleVal)+' · phase '+G.cyclePhase.toFixed(2)+
+    ' · cost ×'+costMul().toFixed(2)+' · bounty ×'+bountyMul().toFixed(2));
+  L.push('thesis: '+Object.keys(G.th).map(function(k){return k+' '+G.th[k];}).join(', '));
+  L.push('abilities: halt '+Math.floor(G.ab.halt)+'/'+ABIL.halt.need+' · tiger '+Math.floor(G.ab.tiger)+'/'+ABIL.tiger.need+
+    ' · supercycles '+G.superCount+' · book DPS '+fmt(G.dps)+' (peak '+fmt(G.peakDps)+')');
+  L.push('positions ('+G.towers.length+'): '+(G.towers.map(function(t){
+    return t.key+' @'+t.gx+','+t.gy+' T'+t.level+(t.branch||'')+' held '+t.held;
+  }).join(' | ')||'none'));
+  var by={}; G.enemies.forEach(function(e){by[e.type]=(by[e.type]||0)+1;});
+  L.push('threats: on floor '+G.enemies.length+(G.enemies.length?' ('+Object.keys(by).map(function(k){return k+' '+by[k];}).join(', ')+')':'')+
+    ' · queued '+G.queue.length+' · seen '+(Object.keys(G.seen).join(', ')||'none'));
+  L.push('errors ('+diagErrs.length+'):');
+  diagErrs.slice(-10).forEach(function(e){L.push('  '+e);});
+  return L.join('\n');
+}
+/* The whole of what's sent, less the email. */
+function reportText(){
+  var note=rep.msg.trim();
+  return repTitle()+'\n\n'+(note?'Note: '+note+'\n\n':'')+diagText();
+}
+function issueLink(f){
+  var note=rep.msg.trim()?rep.msg.trim()+'\n\n':'';
+  var u=function(b){return ISSUE_URL+'?title='+encodeURIComponent(f.title)+'&body='+encodeURIComponent(b);};
+  var full=u(note+'Diagnostics:\n\n```text\n'+f.diag+'\n```');
+  return full.length<7500?full:u(note+'Diagnostics (copied, paste them here):\n\n');
+}
+function repFailHTML(){
+  var f=rep.failed; if(!f)return '';
+  var head=f.why==='slow down'?'Too many reports just now.':'Couldn’t send it from here.';
+  return '<div class="repfail"><b>'+head+'</b> '+(f.copied?'It’s copied.':'Copy it below.')+
+    ' Paste it in a <a href="'+esc(issueLink(f))+'" target="_blank" rel="noopener">GitHub issue ↗</a> (public, needs an account)'+
+    (inClaude()?', or to Claude':'')+'.</div>';
+}
+function setRepStat(s){ rep.stat=s; var el=document.getElementById('rep-stat'); if(el)el.textContent=s; }
+function fillRepDiag(t){ var ta=document.getElementById('rep-diag'); if(ta)ta.value=t||(rep.failed?rep.failed.text:reportText()); }
+function renderReport(){
+  var wait=repWait(), off=rep.busy||wait;
+  var h='<div class="pane-sticky"><div class="row">'+
+    '<span class="ttl">Report a problem</span><span class="bal">v'+VERSION+'</span>'+
+    '</div></div>';
+  h+='<p class="pane-note">Something wrong or odd? Say what happened and send it to the developer, with the game’s state.</p>';
+  h+='<textarea id="rep-msg" class="rep" maxlength="4000" rows="3" placeholder="What happened? (optional)" aria-label="What happened"></textarea>';
+  h+='<input id="rep-mail" class="rep" type="email" maxlength="200" placeholder="Email for a reply (optional)" aria-label="Email, if you’d like a reply" autocomplete="email">';
+  h+='<input id="rep-hp" class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">';
+  h+='<button class="btn go" data-rep="send"'+(off?' disabled':'')+'>'+
+    (rep.busy?'Sending…':(wait?'✓ Sent · thank you':'⚑ Send report'))+'</button>';
+  h+=repFailHTML();
+  h+='<div class="repstat" id="rep-stat" role="status"></div>';
+  h+='<p class="pane-note" style="margin-top:10px">Sends your note, any email you add, the version, browser, screen, this run’s state and any errors. Nothing else.</p>';
+  h+='<details class="repmore" id="rep-more"'+(rep.more?' open':'')+'><summary>What gets sent · copy</summary>'+
+    '<button class="btn" data-rep="copy">Copy report</button>'+
+    '<textarea id="rep-diag" class="diag" readonly spellcheck="false" aria-label="The report"></textarea></details>';
+  if(!setPane(h))return;
+  var m=document.getElementById('rep-msg'), e=document.getElementById('rep-mail'), d=document.getElementById('rep-more');
+  m.value=rep.msg; e.value=rep.mail;
+  m.addEventListener('input',function(){rep.msg=m.value;});
+  e.addEventListener('input',function(){rep.mail=e.value;});
+  e.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ev.preventDefault();sendReport();} });
+  setRepStat(rep.stat);
+  fillRepDiag();
+  d.addEventListener('toggle',function(){ rep.more=d.open; if(d.open&&!rep.failed)fillRepDiag(); });
+  elPane.querySelector('[data-rep="send"]').addEventListener('click',sendReport);
+  elPane.querySelector('[data-rep="copy"]').addEventListener('click',function(){
+    var t=rep.failed?rep.failed.text:reportText(); fillRepDiag(t); copyText(t,'Report');
+  });
+}
+function copyText(t,what,cb){
+  var fin=function(ok){
+    setRepStat(ok?'✓ '+what+' copied'+(inClaude()?' · paste it to Claude':'')
+                 :'Couldn’t copy here · press and hold the text below to copy it');
+    if(!ok)rep.more=true;
+    if(cb)cb(ok);
+  };
+  var legacy=function(){
+    var ok=false;
+    try{
+      var d=document.getElementById('rep-more'), ta=document.getElementById('rep-diag');
+      if(d)d.open=true;
+      if(ta){ ta.value=t; ta.focus(); ta.select(); ta.setSelectionRange(0,t.length); ok=document.execCommand('copy'); }
+    }catch(e){}
+    fin(ok);
+  };
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(function(){fin(true);},legacy);
+      return;
+    }
+  }catch(e){}
+  legacy();
+}
+function sendReport(){
+  if(rep.busy||repWait())return;
+  var m=document.getElementById('rep-msg'), e=document.getElementById('rep-mail'), hpEl=document.getElementById('rep-hp');
+  var hp=hpEl?hpEl.value:'';
+  if(m)rep.msg=m.value.slice(0,4000);
+  if(e)rep.mail=e.value.trim().slice(0,200);
+  if(rep.mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(rep.mail)){ setRepStat('That email doesn’t look right · or leave it empty'); return; }
+  var diag=diagText(), title=repTitle();
+  rep.failed=null; rep.stat='';
+  var done=function(ok,why){
+    rep.busy=false;
+    if(ok){
+      rep.sent=nowMs(); rep.msg=''; rep.stat='✓ Report sent · thank you';
+      lastPaneHtml=null; syncUI();
+      return;
+    }
+    var note=rep.msg.trim();
+    rep.failed={why:why,title:title,diag:diag,text:title+'\n\n'+(note?'Note: '+note+'\n\n':'')+diag,copied:false};
+    diagNote('report not sent: '+why);
+    lastPaneHtml=null; syncUI();
+    /* copy straight away, while the tap still counts as the player's (Safari won't copy later) */
+    copyText(rep.failed.text,'Report',function(ok){ if(rep.failed)rep.failed.copied=ok; });
+  };
+  if(!REPORT_URL){ done(false,'not set up'); return; }
+  rep.busy=true; lastPaneHtml=null; syncUI();
+  var ac=(typeof AbortController==='function')?new AbortController():null;
+  var tm=ac?setTimeout(function(){ac.abort();},20000):0;
+  /* text/plain keeps it a simple request (no CORS preflight); the relay reads it as JSON */
+  fetch(REPORT_URL,{method:'POST',headers:{'Content-Type':'text/plain'},signal:ac?ac.signal:undefined,
+    body:JSON.stringify({v:VERSION,title:title,msg:rep.msg.trim(),mail:rep.mail,diag:diag,save:'',hp:hp,
+      from:location.hostname||location.protocol})})
+  .then(function(r){
+    return r.json().catch(function(){return {};}).then(function(j){ return {ok:r.ok&&!!j.ok, why:j.why||('HTTP '+r.status)}; });
+  },function(err){
+    return {ok:false, why:(err&&err.name==='AbortError')?'timed out':'offline or blocked'};
+  })
+  .then(function(res){ clearTimeout(tm); done(res.ok,res.why); });
 }
 
 function renderCycle(){
@@ -2960,8 +3177,10 @@ function overlay(t,p,btn,mode){
   var b=document.getElementById('ov-b');
   b.textContent=btn;b.style.display='';
   document.getElementById('ov-skip').style.display='none';
+  document.getElementById('ov-rep').style.display=mode==='fatal'?'':'none';
   ovEl.classList.remove('hidden');
 }
+document.getElementById('ov-rep').addEventListener('click',function(){ openSheet('report'); });
 /* No persistence available here, so the walkthrough is a choice rather than a
    remembered fact. If you self-host, swap this for:
      var coached = !localStorage.getItem('siliconCycleSeen');
@@ -3123,6 +3342,7 @@ syncUI();
 
 var last=performance.now(), uiT=0;
 function frame(now){
+  perfTick(now-last);
   var dt=Math.min(0.05,(now-last)/1000);last=now;
   if(glLost){requestAnimationFrame(frame);return;}
   /* one-time tempo tip, on real time so speed changes do not distort it */
